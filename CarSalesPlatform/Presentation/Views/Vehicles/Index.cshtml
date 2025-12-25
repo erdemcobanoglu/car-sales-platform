@@ -1,0 +1,85 @@
+﻿@{
+    ViewData["Title"] = "Vehicles";
+}
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css" />
+
+<h2>Vehicles</h2>
+
+<p>
+    <a class="btn btn-primary" asp-action="Create">Create</a>
+</p>
+
+<table id="vehiclesTable" class="display" style="width:100%">
+    <thead>
+        <tr>
+            <th>Make</th>
+            <th>Model</th>
+            <th>Trim</th>
+            <th>Year</th>
+            <th>Mileage</th>
+            <th>Fuel</th>
+            <th>Transmission</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+</table>
+
+<form id="antiForgeryForm" method="post">
+    @Html.AntiForgeryToken()
+</form>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<script>
+    const antiForgeryToken = $('#antiForgeryForm input[name="__RequestVerificationToken"]').val();
+
+    const table = $('#vehiclesTable').DataTable({
+        serverSide: true,
+        processing: true,
+        ajax: {
+            url: '@Url.Action("Datatable", "Vehicles")',
+            type: 'POST'
+        },
+        columns: [
+            { data: 'make' },
+            { data: 'model' },
+            { data: 'trim' },
+            { data: 'year' },
+            { data: 'mileage' },
+            { data: 'fuelType' },
+            { data: 'transmission' },
+            {
+                data: 'id',
+                orderable: false,
+                searchable: false,
+                render: function (data, type, row) {
+                    const editUrl = '@Url.Action("Edit", "Vehicles")/' + data;
+                    const detailsUrl = '@Url.Action("Details", "Vehicles")/' + data;
+
+                    return `
+                        <a href="${detailsUrl}">Details</a> |
+                        <a href="${editUrl}">Edit</a> |
+                        <a href="#" onclick="deleteVehicle(${data}); return false;">Delete</a>
+                    `;
+                }
+            }
+        ]
+    });
+
+    function deleteVehicle(id) {
+        if (!confirm('Delete this vehicle?')) return;
+
+        $.ajax({
+            url: '@Url.Action("Delete", "Vehicles")',
+            type: 'POST',
+            data: { id: id, __RequestVerificationToken: antiForgeryToken },
+            success: function (res) {
+                if (res && res.ok) table.ajax.reload(null, false);
+                else alert('Delete failed');
+            },
+            error: function () { alert('Delete failed'); }
+        });
+    }
+</script>
