@@ -1,0 +1,163 @@
+﻿@model Presentation.ViewModels.Vehicles.VehicleFormVm
+@using Presentation.Models.Enums
+
+@{
+    var isEdit = Model?.Id is not null && Model.Id > 0;
+    var title = isEdit ? "Edit Vehicle" : "Create Vehicle";
+}
+
+<div class="modal-header">
+    <h5 class="modal-title">@title</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+
+<form id="vehicleModalForm" asp-action="SaveModal" asp-controller="Vehicles" method="post">
+    <div class="modal-body">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Id" />
+
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Make</label>
+                <select class="form-select" asp-for="MakeId" asp-items="ViewBag.Makes" id="makeSelect"></select>
+                <span class="text-danger" asp-validation-for="MakeId"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Model</label>
+                <select class="form-select" asp-for="ModelId" asp-items="ViewBag.Models" id="modelSelect"></select>
+                <span class="text-danger" asp-validation-for="ModelId"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Trim</label>
+                <select class="form-select" asp-for="TrimId" asp-items="ViewBag.Trims" id="trimSelect">
+                    <option value="">(None)</option>
+                </select>
+                <span class="text-danger" asp-validation-for="TrimId"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Year</label>
+                <input class="form-control" asp-for="Year" />
+                <span class="text-danger" asp-validation-for="Year"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Mileage</label>
+                <input class="form-control" asp-for="Mileage" />
+                <span class="text-danger" asp-validation-for="Mileage"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Unit</label>
+                <select class="form-select" asp-for="MileageUnit" asp-items="Html.GetEnumSelectList<MileageUnit>()"></select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Engine (L)</label>
+                <input class="form-control" asp-for="EngineLiters" />
+                <span class="text-danger" asp-validation-for="EngineLiters"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Fuel</label>
+                <select class="form-select" asp-for="FuelType" asp-items="Html.GetEnumSelectList<FuelType>()"></select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Transmission</label>
+                <select class="form-select" asp-for="Transmission" asp-items="Html.GetEnumSelectList<TransmissionType>()"></select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Body</label>
+                <select class="form-select" asp-for="BodyType" asp-items="Html.GetEnumSelectList<BodyType>()"></select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Seats</label>
+                <input class="form-control" asp-for="Seats" />
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Doors</label>
+                <input class="form-control" asp-for="Doors" />
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Colour</label>
+                <input class="form-control" asp-for="Colour" />
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Owners</label>
+                <input class="form-control" asp-for="TotalOwners" />
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">NCT Expiry</label>
+                <input class="form-control" asp-for="NctExpiry" placeholder="YYYY-MM-DD" />
+            </div>
+        </div>
+
+        <div class="mt-3 text-danger" id="modalServerError"></div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+</form>
+
+<script>
+    (function () {
+        const makeSel = document.getElementById('makeSelect');
+        const modelSel = document.getElementById('modelSelect');
+        const trimSel = document.getElementById('trimSelect');
+
+        async function loadModels(makeId, selectedModelId) {
+            modelSel.innerHTML = '';
+            trimSel.innerHTML = '<option value="">(None)</option>';
+
+            if (!makeId) return;
+
+            const res = await fetch('@Url.Action("GetModels", "Vehicles")' + '?makeId=' + makeId);
+            const data = await res.json();
+
+            for (const item of data) {
+                const opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.name;
+                if (selectedModelId && Number(selectedModelId) === Number(item.id)) opt.selected = true;
+                modelSel.appendChild(opt);
+            }
+
+            if (modelSel.value) await loadTrims(modelSel.value, null);
+        }
+
+        async function loadTrims(modelId, selectedTrimId) {
+            trimSel.innerHTML = '<option value="">(None)</option>';
+            if (!modelId) return;
+
+            const res = await fetch('@Url.Action("GetTrims", "Vehicles")' + '?modelId=' + modelId);
+            const data = await res.json();
+
+            for (const item of data) {
+                const opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.name;
+                if (selectedTrimId && Number(selectedTrimId) === Number(item.id)) opt.selected = true;
+                trimSel.appendChild(opt);
+            }
+        }
+
+        makeSel?.addEventListener('change', async () => {
+            await loadModels(makeSel.value, null);
+        });
+
+        modelSel?.addEventListener('change', async () => {
+            await loadTrims(modelSel.value, null);
+        });
+    })();
+</script>

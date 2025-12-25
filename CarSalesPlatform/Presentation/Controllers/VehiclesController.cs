@@ -24,18 +24,15 @@ public class VehiclesController : Controller
     [HttpPost]
     public async Task<IActionResult> Datatable()
     {
-        // DataTables standard fields
         var draw = Request.Form["draw"].FirstOrDefault();
         var start = int.TryParse(Request.Form["start"].FirstOrDefault(), out var s) ? s : 0;
         var length = int.TryParse(Request.Form["length"].FirstOrDefault(), out var l) ? l : 10;
         var searchValue = Request.Form["search[value]"].FirstOrDefault()?.Trim();
 
-        // Sorting
         var sortColIndex = Request.Form["order[0][column]"].FirstOrDefault();
-        var sortDir = Request.Form["order[0][dir]"].FirstOrDefault(); // asc/desc
+        var sortDir = Request.Form["order[0][dir]"].FirstOrDefault();
         var sortColName = Request.Form[$"columns[{sortColIndex}][data]"].FirstOrDefault();
 
-        // Base query
         var query = _db.Vehicles
             .AsNoTracking()
             .Include(v => v.Make)
@@ -64,7 +61,6 @@ public class VehiclesController : Controller
 
         var recordsTotal = await query.CountAsync();
 
-        // Search filter
         if (!string.IsNullOrWhiteSpace(searchValue))
         {
             query = query.Where(x =>
@@ -80,7 +76,6 @@ public class VehiclesController : Controller
 
         var recordsFiltered = await query.CountAsync();
 
-        // Sorting (simple mapping)
         query = (sortColName, sortDir?.ToLowerInvariant()) switch
         {
             ("make", "desc") => query.OrderByDescending(x => x.Make),
@@ -125,7 +120,150 @@ public class VehiclesController : Controller
         return View(v);
     }
 
-    // CREATE
+    // =========================
+    // MODAL CREATE/EDIT (NEW)
+    // =========================
+
+    [HttpGet]
+    public async Task<IActionResult> CreateModal()
+    {
+        await FillLookups();
+        return PartialView("_VehicleFormModal", new VehicleFormVm());
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> EditModal(int id)
+    {
+        var v = await _db.Vehicles.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (v == null) return NotFound();
+
+        var vm = new VehicleFormVm
+        {
+            Id = v.Id,
+            MakeId = v.MakeId,
+            ModelId = v.ModelId,
+            TrimId = v.TrimId,
+            Year = v.Year,
+            Mileage = v.Mileage,
+            MileageUnit = v.MileageUnit,
+            EngineLiters = v.EngineLiters,
+            FuelType = v.FuelType,
+            Transmission = v.Transmission,
+            BodyType = v.BodyType,
+            Seats = v.Seats,
+            Doors = v.Doors,
+            Colour = v.Colour,
+            TotalOwners = v.TotalOwners,
+            NctExpiry = v.NctExpiry
+        };
+
+        await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
+        return PartialView("_VehicleFormModal", vm);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveModal(VehicleFormVm vm)
+    {
+        if (!ModelState.IsValid)
+        {
+            await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
+            return PartialView("_VehicleFormModal", vm);
+        }
+
+        // CREATE
+        if (vm.Id is null || vm.Id <= 0)
+        {
+            var entity = new Vehicle
+            {
+                MakeId = vm.MakeId,
+                ModelId = vm.ModelId,
+                TrimId = vm.TrimId,
+
+                Year = vm.Year,
+                Mileage = vm.Mileage,
+                MileageUnit = vm.MileageUnit,
+
+                EngineLiters = vm.EngineLiters,
+                FuelType = vm.FuelType,
+                Transmission = vm.Transmission,
+                BodyType = vm.BodyType,
+
+                Seats = vm.Seats,
+                Doors = vm.Doors,
+                Colour = vm.Colour,
+
+                TotalOwners = vm.TotalOwners,
+                NctExpiry = vm.NctExpiry
+            };
+
+            _db.Vehicles.Add(entity);
+            await _db.SaveChangesAsync();
+
+            return Json(new { ok = true });
+        }
+
+        // UPDATE
+        var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == vm.Id.Value);
+        if (v == null) return NotFound();
+
+        v.MakeId = vm.MakeId;
+        v.ModelId = vm.ModelId;
+        v.TrimId = vm.TrimId;
+
+        v.Year = vm.Year;
+        v.Mileage = vm.Mileage;
+        v.MileageUnit = vm.MileageUnit;
+
+        v.EngineLiters = vm.EngineLiters;
+        v.FuelType = vm.FuelType;
+        v.Transmission = vm.Transmission;
+        v.BodyType = vm.BodyType;
+
+        v.Seats = vm.Seats;
+        v.Doors = vm.Doors;
+        v.Colour = vm.Colour;
+
+        v.TotalOwners = vm.TotalOwners;
+        v.NctExpiry = vm.NctExpiry;
+
+        v.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+
+        return Json(new { ok = true });
+    }
+
+    // Dependent dropdown endpoints (NEW)
+    [HttpGet]
+    public async Task<IActionResult> GetModels(int makeId)
+    {
+        var items = await _db.Models.AsNoTracking()
+            .Where(x => x.MakeId == makeId)
+            .OrderBy(x => x.Name)
+            .Select(x => new { x.Id, x.Name })
+            .ToListAsync();
+
+        return Json(items);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetTrims(int modelId)
+    {
+        var items = await _db.Trims.AsNoTracking()
+            .Where(x => x.ModelId == modelId)
+            .OrderBy(x => x.Name)
+            .Select(x => new { x.Id, x.Name })
+            .ToListAsync();
+
+        return Json(items);
+    }
+
+    // =========================
+    // PAGE CREATE/EDIT (OLD)
+    // (istersen sonra sileriz)
+    // =========================
+
     [HttpGet]
     public async Task<IActionResult> Create()
     {
@@ -172,7 +310,6 @@ public class VehiclesController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    // EDIT
     [HttpGet]
     public async Task<IActionResult> Edit(int id)
     {

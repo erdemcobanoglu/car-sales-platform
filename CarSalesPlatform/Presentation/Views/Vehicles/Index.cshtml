@@ -6,11 +6,9 @@
 
 <h2>Vehicles</h2>
 
-<p>
-    <a class="btn btn-primary" asp-action="Create">Create</a>
-</p>
+<button class="btn btn-primary" id="btnCreate">Create</button>
 
-<table id="vehiclesTable" class="display" style="width:100%">
+<table id="vehiclesTable" class="display" style="width:100%; margin-top:12px;">
     <thead>
         <tr>
             <th>Make</th>
@@ -29,57 +27,119 @@
     @Html.AntiForgeryToken()
 </form>
 
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<!-- Bootstrap Modal -->
+<div class="modal fade" id="vehicleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" id="vehicleModalContent"></div>
+    </div>
+</div>
 
-<script>
-    const antiForgeryToken = $('#antiForgeryForm input[name="__RequestVerificationToken"]').val();
+@section Scripts {
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 
-    const table = $('#vehiclesTable').DataTable({
-        serverSide: true,
-        processing: true,
-        ajax: {
-            url: '@Url.Action("Datatable", "Vehicles")',
-            type: 'POST'
-        },
-        columns: [
-            { data: 'make' },
-            { data: 'model' },
-            { data: 'trim' },
-            { data: 'year' },
-            { data: 'mileage' },
-            { data: 'fuelType' },
-            { data: 'transmission' },
-            {
-                data: 'id',
-                orderable: false,
-                searchable: false,
-                render: function (data, type, row) {
-                    const editUrl = '@Url.Action("Edit", "Vehicles")/' + data;
-                    const detailsUrl = '@Url.Action("Details", "Vehicles")/' + data;
+    <script>
+        const antiForgeryToken = $('#antiForgeryForm input[name="__RequestVerificationToken"]').val();
 
-                    return `
-                        <a href="${detailsUrl}">Details</a> |
-                        <a href="${editUrl}">Edit</a> |
-                        <a href="#" onclick="deleteVehicle(${data}); return false;">Delete</a>
-                    `;
-                }
-            }
-        ]
-    });
-
-    function deleteVehicle(id) {
-        if (!confirm('Delete this vehicle?')) return;
-
-        $.ajax({
-            url: '@Url.Action("Delete", "Vehicles")',
-            type: 'POST',
-            data: { id: id, __RequestVerificationToken: antiForgeryToken },
-            success: function (res) {
-                if (res && res.ok) table.ajax.reload(null, false);
-                else alert('Delete failed');
+        const table = $('#vehiclesTable').DataTable({
+            serverSide: true,
+            processing: true,
+            ajax: {
+                url: '@Url.Action("Datatable", "Vehicles")',
+                type: 'POST'
             },
-            error: function () { alert('Delete failed'); }
+            columns: [
+                { data: 'make' },
+                { data: 'model' },
+                { data: 'trim' },
+                { data: 'year' },
+                { data: 'mileage' },
+                { data: 'fuelType' },
+                { data: 'transmission' },
+                {
+                    data: 'id',
+                    orderable: false,
+                    searchable: false,
+                    render: function (id) {
+                        return `
+                                    <a href="#" onclick="openEdit(${id}); return false;">Edit</a> |
+                                    <a href="#" onclick="deleteVehicle(${id}); return false;">Delete</a>
+                                `;
+                    }
+                }
+            ]
         });
-    }
-</script>
+
+        // Bootstrap modal instance (Bootstrap 5) - layout'ta yüklü olmalı
+        const modalEl = document.getElementById('vehicleModal');
+        const bsModal = new bootstrap.Modal(modalEl);
+
+        async function openCreate() {
+            const html = await fetch('@Url.Action("CreateModal", "Vehicles")').then(r => r.text());
+            $('#vehicleModalContent').html(html);
+            wireModalForm();
+            bsModal.show();
+        }
+
+        async function openEdit(id) {
+            const html = await fetch('@Url.Action("EditModal", "Vehicles")' + '?id=' + id).then(r => r.text());
+            $('#vehicleModalContent').html(html);
+            wireModalForm();
+            bsModal.show();
+        }
+
+        $('#btnCreate').on('click', function () {
+            openCreate();
+        });
+
+        function wireModalForm() {
+            const $form = $('#vehicleModalForm');
+            if ($form.length === 0) return;
+
+            $form.off('submit').on('submit', function (e) {
+                e.preventDefault();
+
+                $.ajax({
+                    url: '@Url.Action("SaveModal", "Vehicles")',
+                    type: 'POST',
+                    data: $form.serialize(),
+                    success: function (res) {
+                        // başarılıysa JSON { ok: true }
+                        if (res && res.ok) {
+                            bsModal.hide();
+                            table.ajax.reload(null, false);
+                            return;
+                        }
+
+                        // validation hatası: partial HTML döner
+                        $('#vehicleModalContent').html(res);
+                        wireModalForm();
+                    },
+                    error: function () {
+                        const el = document.getElementById('modalServerError');
+                        if (el) el.innerText = 'Save failed.';
+                        else alert('Save failed.');
+                    }
+                });
+            });
+        }
+
+        function deleteVehicle(id) {
+            if (!confirm('Delete this vehicle?')) return;
+
+            $.ajax({
+                url: '@Url.Action("Delete", "Vehicles")',
+                type: 'POST',
+                data: { id: id, __RequestVerificationToken: antiForgeryToken },
+                success: function (res) {
+                    if (res && res.ok) table.ajax.reload(null, false);
+                    else alert('Delete failed');
+                },
+                error: function () { alert('Delete failed'); }
+            });
+        }
+
+        // expose for inline onclick
+        window.openEdit = openEdit;
+        window.deleteVehicle = deleteVehicle;
+    </script>
+}
