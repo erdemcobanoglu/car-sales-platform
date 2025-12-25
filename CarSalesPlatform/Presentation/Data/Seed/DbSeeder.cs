@@ -1,4 +1,5 @@
-﻿using Presentation.Models;
+﻿using Microsoft.EntityFrameworkCore;
+using Presentation.Models;
 using Presentation.Models.Enums;
 
 namespace Presentation.Data.Seed;
@@ -7,61 +8,59 @@ public static class DbSeeder
 {
     public static async Task SeedAsync(AppDbContext db)
     {
-        // Lookup data zaten varsa tekrar basma
-        if (db.Makes.Any())
-            return;
-
-        // ===== MAKE =====
-        var ford = new Make
+        // 1) Lookup seed (Make/Model/Trim)
+        if (!await db.Makes.AnyAsync())
         {
-            Name = "Ford"
-        };
+            var ford = new Make { Name = "Ford" };
+            var smax = new VehicleModel { Name = "S-Max", Make = ford };
+            var zetec = new Trim { Name = "Zetec", Level = "Base Trim", Model = smax };
 
-        // ===== MODEL =====
-        var smax = new VehicleModel
+            db.Makes.Add(ford);
+            db.Models.Add(smax);
+            db.Trims.Add(zetec);
+
+            await db.SaveChangesAsync();
+        }
+
+        // Lookup'ları DB'den çek (seed daha önce basılmış olabilir)
+        var fordMake = await db.Makes.FirstOrDefaultAsync(x => x.Name == "Ford");
+        var smaxModel = await db.Models
+            .Include(m => m.Make)
+            .FirstOrDefaultAsync(x => x.Name == "S-Max" && x.Make.Name == "Ford");
+        var zetecTrim = await db.Trims
+            .Include(t => t.Model)
+            .FirstOrDefaultAsync(x => x.Name == "Zetec" && x.Model.Name == "S-Max");
+
+        // 2) Vehicle seed (ayrı kontrol)
+        if (!await db.Vehicles.AnyAsync())
         {
-            Name = "S-Max",
-            Make = ford
-        };
+            if (fordMake is null || smaxModel is null) return;
 
-        // ===== TRIM =====
-        var zetec = new Trim
-        {
-            Name = "Zetec",
-            Level = "Base Trim",
-            Model = smax
-        };
+            var vehicle = new Vehicle
+            {
+                MakeId = fordMake.Id,
+                ModelId = smaxModel.Id,
+                TrimId = zetecTrim?.Id,
 
-        db.Makes.Add(ford);
-        db.Models.Add(smax);
-        db.Trims.Add(zetec);
+                Year = 2017,
+                Mileage = 91344,
+                MileageUnit = MileageUnit.Miles,
 
-        // ===== VEHICLE (TEST DATA) =====
-        var vehicle = new Vehicle
-        {
-            Make = ford,
-            Model = smax,
-            Trim = zetec,
+                EngineLiters = 2.0,
+                FuelType = FuelType.Diesel,
+                Transmission = TransmissionType.Automatic,
+                BodyType = BodyType.MPV,
 
-            Year = 2017,
-            Mileage = 91344,
-            MileageUnit = MileageUnit.Miles,
+                Seats = 7,
+                Doors = 5,
+                Colour = "Silver",
 
-            EngineLiters = 2.0,
-            FuelType = FuelType.Diesel,
-            Transmission = TransmissionType.Automatic,
-            BodyType = BodyType.MPV,
+                TotalOwners = 2,
+                NctExpiry = new DateOnly(2025, 11, 1)
+            };
 
-            Seats = 7,
-            Doors = 5,
-            Colour = "Silver",
-
-            TotalOwners = 2,
-            NctExpiry = new DateOnly(2025, 11, 1)
-        };
-
-        db.Vehicles.Add(vehicle);
-
-        await db.SaveChangesAsync();
+            db.Vehicles.Add(vehicle);
+            await db.SaveChangesAsync();
+        }
     }
 }

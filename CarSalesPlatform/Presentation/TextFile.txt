@@ -398,3 +398,13 @@ Bu iskeletin üstüne sırayla:
 3. Model dropdown’u Make’e göre filtreleme (LookupsController + küçük JS)
 
 İstersen ben bir sonraki mesajda **VehiclesController + Create/Edit/Index Razor View** dosyalarını komple (kopyala-yapıştır) çıkarayım.
+
+
+ 
+=====  add migration  ===== 
+
+1) EntityFrameworkCore\Add-Migration InitialCreate
+2) EntityFrameworkCore\Update-Database
+
+
+=====  add migration  ===== 
