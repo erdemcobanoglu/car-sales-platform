@@ -63,15 +63,19 @@ public class VehiclesController : Controller
 
         if (!string.IsNullOrWhiteSpace(searchValue))
         {
+            // SQL LIKE için %...%
+            var sLike = $"%{searchValue}%";
+
             query = query.Where(x =>
-                x.Make.Contains(searchValue) ||
-                x.Model.Contains(searchValue) ||
-                (x.Trim != null && x.Trim.Contains(searchValue)) ||
-                x.FuelType.Contains(searchValue) ||
-                x.Transmission.Contains(searchValue) ||
-                x.BodyType.Contains(searchValue) ||
-                x.Year.ToString().Contains(searchValue) ||
-                x.Mileage.ToString().Contains(searchValue));
+                EF.Functions.Like(x.Make, sLike) ||
+                EF.Functions.Like(x.Model, sLike) ||
+                (x.Trim != null && EF.Functions.Like(x.Trim, sLike)) ||
+                EF.Functions.Like(x.FuelType, sLike) ||
+                EF.Functions.Like(x.Transmission, sLike) ||
+                EF.Functions.Like(x.BodyType, sLike) ||
+                EF.Functions.Like(x.Year.ToString(), sLike) ||
+                EF.Functions.Like(x.Mileage.ToString(), sLike)
+            );
         }
 
         var recordsFiltered = await query.CountAsync();

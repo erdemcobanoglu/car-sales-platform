@@ -60,12 +60,16 @@
                     orderable: false,
                     searchable: false,
                     render: function (id) {
+                        const detailsUrl = '@Url.Action("Details", "Vehicles")/' + id;
+
                         return `
-                                    <a href="#" onclick="openEdit(${id}); return false;">Edit</a> |
-                                    <a href="#" onclick="deleteVehicle(${id}); return false;">Delete</a>
-                                `;
+                    <a href="${detailsUrl}">Details</a> |
+                    <a href="#" onclick="openEdit(${id}); return false;">Edit</a> |
+                    <a href="#" onclick="deleteVehicle(${id}); return false;">Delete</a>
+                `;
                     }
                 }
+
             ]
         });
 
