@@ -1,5 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Presentation.Models; 
+using Presentation.Models;
 
 namespace Presentation.Data;
 
@@ -11,6 +11,9 @@ public class AppDbContext : DbContext
     public DbSet<Make> Makes => Set<Make>();
     public DbSet<VehicleModel> Models => Set<VehicleModel>();
     public DbSet<Trim> Trims => Set<Trim>();
+    public DbSet<VehiclePhoto> VehiclePhotos => Set<VehiclePhoto>();
+
+
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -46,6 +49,17 @@ public class AppDbContext : DbContext
             .WithMany(x => x.Vehicles)
             .HasForeignKey(x => x.TrimId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        b.Entity<VehiclePhoto>()
+            .HasOne(p => p.Vehicle)
+            .WithMany(v => v.Photos)
+            .HasForeignKey(p => p.VehicleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<VehiclePhoto>()
+            .HasIndex(p => new { p.VehicleId, p.SortOrder })
+            .IsUnique();
+
     }
 }
 

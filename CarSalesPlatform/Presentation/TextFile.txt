@@ -406,5 +406,13 @@ Bu iskeletin üstüne sırayla:
 1) EntityFrameworkCore\Add-Migration InitialCreate
 2) EntityFrameworkCore\Update-Database
 
+EntityFrameworkCore\Add-Migration AddVehiclePhotos
+EntityFrameworkCore\Update-Database
+
+
+# veri ekleme silme islemi icin #
+1) EntityFrameworkCore\Drop-Database
+2) EntityFrameworkCore\Update-Database
+
 
 =====  add migration  ===== 

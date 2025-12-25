@@ -36,5 +36,8 @@ public class Vehicle
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
+
+    public ICollection<VehiclePhoto> Photos { get; set; } = new List<VehiclePhoto>();
+
 }
 
