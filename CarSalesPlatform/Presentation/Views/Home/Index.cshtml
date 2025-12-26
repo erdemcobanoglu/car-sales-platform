@@ -1,8 +1,58 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "Vehicles";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css" />
+
+<h2>Vehicles</h2>
+
+<table id="vehiclesTable" class="display" style="width:100%; margin-top:12px;">
+    <thead>
+        <tr>
+            <th>Make</th>
+            <th>Model</th>
+            <th>Trim</th>
+            <th>Year</th>
+            <th>Mileage</th>
+            <th>Fuel</th>
+            <th>Transmission</th>
+            <th>Details</th>
+        </tr>
+    </thead>
+</table>
+
+@section Scripts {
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+    <script>
+        const datatableUrl = '@Url.Action("Datatable", "Home")';
+        const detailsBaseUrl = '@Url.Action("Details", "Home")'; // /Home/Details
+
+        const table = $('#vehiclesTable').DataTable({
+            serverSide: true,
+            processing: true,
+            ajax: {
+                url: datatableUrl,
+                type: 'POST'
+            },
+            columns: [
+                { data: 'make' },
+                { data: 'model' },
+                { data: 'trim' },
+                { data: 'year' },
+                { data: 'mileage' },
+                { data: 'fuelType' },
+                { data: 'transmission' },
+                {
+                    data: 'id',
+                    orderable: false,
+                    searchable: false,
+                    render: function (id) {
+                        const detailsUrl = `${detailsBaseUrl}/${id}`; // /Home/Details/5
+                        return `<a class="btn btn-sm btn-outline-primary" href="${detailsUrl}">Details</a>`;
+                    }
+                }
+            ]
+        });
+    </script>
+}
