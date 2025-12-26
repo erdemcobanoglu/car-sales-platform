@@ -1,0 +1,93 @@
+﻿@model Presentation.ViewModels.Vehicles.VehicleFormVm
+
+@{
+    ViewData["Title"] = "Create Vehicle";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <h2 class="mb-0">Create vehicle</h2>
+        <div class="text-muted">Add a new listing</div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" asp-controller="Vehicles" asp-action="Index">Back</a>
+        <button form="vehicleForm" type="submit" class="btn btn-primary">Save</button>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <form id="vehicleForm" asp-action="Create" method="post">
+            @Html.AntiForgeryToken()
+            <partial name="_VehicleForm" model="Model" />
+        </form>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <strong>Tips</strong>
+            </div>
+            <div class="card-body text-muted">
+                <ul class="mb-0">
+                    <li>Make & Model seç, sonra Trim gelir.</li>
+                    <li>Year/Mileage doğru olmalı.</li>
+                    <li>Foto eklemeyi sonraki adımda ekleyebiliriz.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Dependent dropdowns (Make -> Model -> Trim)
+        (function () {
+            const makeSel = document.getElementById('makeSelect');
+            const modelSel = document.getElementById('modelSelect');
+            const trimSel = document.getElementById('trimSelect');
+
+            async function loadModels(makeId) {
+                modelSel.innerHTML = '';
+                trimSel.innerHTML = '<option value="">(None)</option>';
+
+                if (!makeId) return;
+
+                const res = await fetch('@Url.Action("GetModels", "Vehicles")' + '?makeId=' + makeId);
+                const data = await res.json();
+
+                for (const item of data) {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.name;
+                    modelSel.appendChild(opt);
+                }
+            }
+
+            async function loadTrims(modelId) {
+                trimSel.innerHTML = '<option value="">(None)</option>';
+                if (!modelId) return;
+
+                const res = await fetch('@Url.Action("GetTrims", "Vehicles")' + '?modelId=' + modelId);
+                const data = await res.json();
+
+                for (const item of data) {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.name;
+                    trimSel.appendChild(opt);
+                }
+            }
+
+            makeSel?.addEventListener('change', async () => {
+                await loadModels(makeSel.value);
+            });
+
+            modelSel?.addEventListener('change', async () => {
+                await loadTrims(modelSel.value);
+            });
+        })();
+    </script>
+}

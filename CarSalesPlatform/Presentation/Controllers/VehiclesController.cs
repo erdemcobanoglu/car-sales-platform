@@ -138,7 +138,9 @@ public class VehiclesController : Controller
     [HttpGet]
     public async Task<IActionResult> EditModal(int id)
     {
-        var v = await _db.Vehicles.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        var v = await _db.Vehicles.Include(x => x.Photos.OrderBy(p => p.SortOrder))
+                                  .FirstOrDefaultAsync(x => x.Id == id);
+
         if (v == null) return NotFound();
 
         var vm = new VehicleFormVm
@@ -158,7 +160,17 @@ public class VehiclesController : Controller
             Doors = v.Doors,
             Colour = v.Colour,
             TotalOwners = v.TotalOwners,
-            NctExpiry = v.NctExpiry
+            NctExpiry = v.NctExpiry,
+            Photos = v.Photos
+            .OrderBy(p => p.SortOrder)
+            .Select(p => new VehiclePhotoVm
+            {
+                Id = p.Id,
+                Url = p.Url,
+                SortOrder = p.SortOrder,
+                IsCover = p.IsCover
+            }).ToList(),
+
         };
 
         await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
@@ -418,4 +430,134 @@ public class VehiclesController : Controller
         var trims = await trimsQuery.ToListAsync();
         ViewBag.Trims = new SelectList(trims, "Id", "Name", trimId);
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UploadPhotos(int vehicleId, List<IFormFile> files)
+    {
+        if (files == null || files.Count == 0)
+            return RedirectToAction(nameof(Edit), new { id = vehicleId });
+
+        if (files.Count > 10)
+        {
+            TempData["PhotoError"] = "You can upload maximum 10 photos at once.";
+            return RedirectToAction(nameof(Edit), new { id = vehicleId });
+        }
+
+        var vehicle = await _db.Vehicles
+            .Include(v => v.Photos)
+            .FirstOrDefaultAsync(v => v.Id == vehicleId);
+
+        if (vehicle == null) return NotFound();
+
+        var existingCount = vehicle.Photos.Count;
+        if (existingCount + files.Count > 10)
+        {
+            TempData["PhotoError"] = $"This vehicle already has {existingCount} photos. Max is 10.";
+            return RedirectToAction(nameof(Edit), new { id = vehicleId });
+        }
+
+        var uploadRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "vehicles", vehicleId.ToString());
+        Directory.CreateDirectory(uploadRoot);
+
+        // SortOrder: mevcut max + 1'den devam et
+        var nextSort = vehicle.Photos.Any() ? vehicle.Photos.Max(p => p.SortOrder) + 1 : 0;
+
+        foreach (var file in files)
+        {
+            if (file.Length <= 0) continue;
+
+            // basit güvenlik: sadece image
+            if (!file.ContentType.StartsWith("image/"))
+                continue;
+
+            var ext = Path.GetExtension(file.FileName);
+            if (string.IsNullOrWhiteSpace(ext)) ext = ".jpg";
+
+            var fileName = $"{Guid.NewGuid():N}{ext}";
+            var fullPath = Path.Combine(uploadRoot, fileName);
+
+            await using (var stream = System.IO.File.Create(fullPath))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var url = $"/uploads/vehicles/{vehicleId}/{fileName}";
+
+            var photo = new VehiclePhoto
+            {
+                VehicleId = vehicleId,
+                Url = url,
+                SortOrder = nextSort++,
+                IsCover = !vehicle.Photos.Any(p => p.IsCover) && !vehicle.Photos.Any() // ilk foto cover olsun
+            };
+
+            _db.VehiclePhotos.Add(photo);
+            vehicle.Photos.Add(photo);
+        }
+
+        // Eğer hiç cover yoksa ilk fotoyu cover yap
+        if (!vehicle.Photos.Any(p => p.IsCover) && vehicle.Photos.Any())
+        {
+            var first = vehicle.Photos.OrderBy(p => p.SortOrder).First();
+            first.IsCover = true;
+        }
+
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Edit), new { id = vehicleId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeletePhoto(int id, int vehicleId)
+    {
+        var photo = await _db.VehiclePhotos.FirstOrDefaultAsync(p => p.Id == id && p.VehicleId == vehicleId);
+        if (photo == null) return NotFound();
+
+        // dosyayı da sil
+        var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", photo.Url.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString()));
+        if (System.IO.File.Exists(fullPath))
+            System.IO.File.Delete(fullPath);
+
+        var wasCover = photo.IsCover;
+
+        _db.VehiclePhotos.Remove(photo);
+        await _db.SaveChangesAsync();
+
+        // cover silindiyse yeni cover ata
+        if (wasCover)
+        {
+            var remaining = await _db.VehiclePhotos
+                .Where(p => p.VehicleId == vehicleId)
+                .OrderBy(p => p.SortOrder)
+                .ToListAsync();
+
+            if (remaining.Any())
+            {
+                remaining.ForEach(p => p.IsCover = false);
+                remaining.First().IsCover = true;
+                await _db.SaveChangesAsync();
+            }
+        }
+
+        return RedirectToAction(nameof(Edit), new { id = vehicleId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetCover(int id, int vehicleId)
+    {
+        var photos = await _db.VehiclePhotos
+            .Where(p => p.VehicleId == vehicleId)
+            .ToListAsync();
+
+        if (!photos.Any()) return RedirectToAction(nameof(Edit), new { id = vehicleId });
+
+        foreach (var p in photos)
+            p.IsCover = (p.Id == id);
+
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Edit), new { id = vehicleId });
+    }
+
 }

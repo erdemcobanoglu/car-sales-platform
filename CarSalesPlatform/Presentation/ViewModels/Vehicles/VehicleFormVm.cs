@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Presentation.Models;
 using Presentation.Models.Enums;
 
 namespace Presentation.ViewModels.Vehicles;
@@ -27,4 +28,6 @@ public class VehicleFormVm
 
     [Range(0, 50)] public int TotalOwners { get; set; }
     public DateOnly? NctExpiry { get; set; }
+    public List<VehiclePhotoVm> Photos { get; set; } = new();
+
 }

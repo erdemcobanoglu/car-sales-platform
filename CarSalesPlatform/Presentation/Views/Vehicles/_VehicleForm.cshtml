@@ -1,0 +1,152 @@
+﻿@model Presentation.ViewModels.Vehicles.VehicleFormVm
+@using Presentation.Models.Enums
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <strong>Vehicle information</strong>
+    </div>
+
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Make</label>
+                <select class="form-select" asp-for="MakeId" asp-items="ViewBag.Makes" id="makeSelect"></select>
+                <span class="text-danger" asp-validation-for="MakeId"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Model</label>
+                <select class="form-select" asp-for="ModelId" asp-items="ViewBag.Models" id="modelSelect"></select>
+                <span class="text-danger" asp-validation-for="ModelId"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Trim</label>
+                <select class="form-select" asp-for="TrimId" asp-items="ViewBag.Trims" id="trimSelect">
+                    <option value="">(None)</option>
+                </select>
+                <span class="text-danger" asp-validation-for="TrimId"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Year</label>
+                <input class="form-control" asp-for="Year" />
+                <span class="text-danger" asp-validation-for="Year"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Mileage</label>
+                <input class="form-control" asp-for="Mileage" />
+                <span class="text-danger" asp-validation-for="Mileage"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Mileage unit</label>
+                <select class="form-select" asp-for="MileageUnit" asp-items="Html.GetEnumSelectList<MileageUnit>()"></select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Engine (L)</label>
+                <input class="form-control" asp-for="EngineLiters" />
+                <span class="text-danger" asp-validation-for="EngineLiters"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Fuel</label>
+                <select class="form-select" asp-for="FuelType" asp-items="Html.GetEnumSelectList<FuelType>()"></select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Transmission</label>
+                <select class="form-select" asp-for="Transmission" asp-items="Html.GetEnumSelectList<TransmissionType>()"></select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Body type</label>
+                <select class="form-select" asp-for="BodyType" asp-items="Html.GetEnumSelectList<BodyType>()"></select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Seats</label>
+                <input class="form-control" asp-for="Seats" />
+                <span class="text-danger" asp-validation-for="Seats"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Doors</label>
+                <input class="form-control" asp-for="Doors" />
+                <span class="text-danger" asp-validation-for="Doors"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Colour</label>
+                <input class="form-control" asp-for="Colour" />
+                <span class="text-danger" asp-validation-for="Colour"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Owners</label>
+                <input class="form-control" asp-for="TotalOwners" />
+                <span class="text-danger" asp-validation-for="TotalOwners"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">NCT expiry</label>
+                <input class="form-control" asp-for="NctExpiry" placeholder="YYYY-MM-DD" />
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        // Dependent dropdowns (Make -> Model -> Trim)
+        (function () {
+            const makeSel = document.getElementById('makeSelect');
+            const modelSel = document.getElementById('modelSelect');
+            const trimSel = document.getElementById('trimSelect');
+
+            async function loadModels(makeId) {
+                modelSel.innerHTML = '';
+                trimSel.innerHTML = '<option value="">(None)</option>';
+
+                if (!makeId) return;
+
+                const res = await fetch('@Url.Action("GetModels", "Vehicles")' + '?makeId=' + makeId);
+                const data = await res.json();
+
+                for (const item of data) {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.name;
+                    modelSel.appendChild(opt);
+                }
+            }
+
+            async function loadTrims(modelId) {
+                trimSel.innerHTML = '<option value="">(None)</option>';
+                if (!modelId) return;
+
+                const res = await fetch('@Url.Action("GetTrims", "Vehicles")' + '?modelId=' + modelId);
+                const data = await res.json();
+
+                for (const item of data) {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.name;
+                    trimSel.appendChild(opt);
+                }
+            }
+
+            makeSel?.addEventListener('change', async () => {
+                await loadModels(makeSel.value);
+            });
+
+            modelSel?.addEventListener('change', async () => {
+                await loadTrims(modelSel.value);
+            });
+        })();
+    </script>
+}

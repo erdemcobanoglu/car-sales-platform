@@ -1,0 +1,216 @@
+﻿@model Presentation.ViewModels.Vehicles.VehicleFormVm
+
+@{
+    ViewData["Title"] = "Edit Vehicle";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <h2 class="mb-0">Edit vehicle</h2>
+        <div class="text-muted">Update listing details • ID: @Model.Id</div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" asp-controller="Vehicles" asp-action="Index">Back</a>
+        <a class="btn btn-outline-secondary" asp-controller="Vehicles" asp-action="Details" asp-route-id="@Model.Id">Details</a>
+        <button form="vehicleForm" type="submit" class="btn btn-primary">Save</button>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <form id="vehicleForm" asp-action="Edit" asp-route-id="@Model.Id" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <partial name="_VehicleForm" model="Model" />
+        </form>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-white">
+                <strong>Quick actions</strong>
+            </div>
+            <div class="card-body d-grid gap-2">
+                <a class="btn btn-outline-primary"
+                   asp-controller="Vehicles" asp-action="Details" asp-route-id="@Model.Id">
+                    View details
+                </a>
+                <button type="button" class="btn btn-outline-danger" onclick="deleteFromEdit(@Model.Id)">
+                    Delete
+                </button>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <strong>Notes</strong>
+            </div>
+            <div class="card-body text-muted">
+                <div>Trim dropdown’u Model’e göre filtrelenir.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="antiForgeryEdit" method="post">
+    @Html.AntiForgeryToken()
+</form>
+
+@if (TempData["PhotoError"] != null)
+{
+    <div class="alert alert-warning mt-3">@TempData["PhotoError"]</div>
+}
+
+<div class="mt-3">
+    <partial name="_PhotoGallery" model="Model.Photos" />
+</div>
+
+<div class="card shadow-sm mt-3">
+    <div class="card-header bg-white">
+        <strong>Upload photos</strong>
+    </div>
+    <div class="card-body">
+        <form asp-controller="Vehicles" asp-action="UploadPhotos" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="vehicleId" value="@Model.Id" />
+
+            <div class="mb-3">
+                <label class="form-label">Select images (max 10 total per vehicle)</label>
+                <input class="form-control" type="file" name="files" multiple accept="image/*" />
+            </div>
+
+            <button class="btn btn-outline-primary" type="submit">Upload</button>
+        </form>
+    </div>
+</div>
+
+@if (Model.Photos != null && Model.Photos.Any())
+{
+    <div class="card shadow-sm mt-3">
+        <div class="card-header bg-white">
+            <strong>Manage photos</strong>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                @foreach (var p in Model.Photos.OrderBy(x => x.SortOrder))
+                {
+                    <div class="col-6 col-md-4 col-lg-3">
+                        <div class="border rounded p-2">
+                            <img src="@p.Url" class="w-100 rounded" style="height:120px; object-fit:cover;" />
+
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <span class="badge @(p.IsCover ? "text-bg-primary" : "text-bg-light")">
+                                    @(p.IsCover ? "Cover" : "Photo")
+                                </span>
+                            </div>
+
+                            <div class="d-grid gap-2 mt-2">
+                                @if (!p.IsCover)
+                                {
+                                    <form asp-controller="Vehicles" asp-action="SetCover" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@p.Id" />
+                                        <input type="hidden" name="vehicleId" value="@Model.Id" />
+                                        <button class="btn btn-sm btn-outline-primary" type="submit">Set cover</button>
+                                    </form>
+                                }
+
+                                <form asp-controller="Vehicles" asp-action="DeletePhoto" method="post"
+                                      onsubmit="return confirm('Delete this photo?');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@p.Id" />
+                                    <input type="hidden" name="vehicleId" value="@Model.Id" />
+                                    <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Dependent dropdowns (Make -> Model -> Trim)
+        (function () {
+            const makeSel = document.getElementById('makeSelect');
+            const modelSel = document.getElementById('modelSelect');
+            const trimSel = document.getElementById('trimSelect');
+
+            async function loadModels(makeId) {
+                const selectedModelId = '@Model.ModelId';
+                modelSel.innerHTML = '';
+                trimSel.innerHTML = '<option value="">(None)</option>';
+
+                if (!makeId) return;
+
+                const res = await fetch('@Url.Action("GetModels", "Vehicles")' + '?makeId=' + makeId);
+                const data = await res.json();
+
+                for (const item of data) {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.name;
+                    if (Number(item.id) === Number(selectedModelId)) opt.selected = true;
+                    modelSel.appendChild(opt);
+                }
+
+                if (modelSel.value) await loadTrims(modelSel.value);
+            }
+
+            async function loadTrims(modelId) {
+                const selectedTrimId = '@(Model.TrimId?.ToString() ?? "")';
+                trimSel.innerHTML = '<option value="">(None)</option>';
+                if (!modelId) return;
+
+                const res = await fetch('@Url.Action("GetTrims", "Vehicles")' + '?modelId=' + modelId);
+                const data = await res.json();
+
+                for (const item of data) {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.name;
+                    if (selectedTrimId && Number(item.id) === Number(selectedTrimId)) opt.selected = true;
+                    trimSel.appendChild(opt);
+                }
+            }
+
+            // Edit sayfasında initial state doğru gelsin:
+            // Make değişince model/trim reload eder
+            makeSel?.addEventListener('change', async () => {
+                await loadModels(makeSel.value);
+            });
+
+            modelSel?.addEventListener('change', async () => {
+                await loadTrims(modelSel.value);
+            });
+
+            // ilk açılışta trim listesi dolu değilse doldur
+            if (modelSel && modelSel.value) {
+                loadTrims(modelSel.value);
+            }
+        })();
+
+        function deleteFromEdit(id) {
+            if (!confirm('Delete this vehicle?')) return;
+            const token = document.querySelector('#antiForgeryEdit input[name="__RequestVerificationToken"]').value;
+
+            fetch('@Url.Action("Delete", "Vehicles")', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ id: id, __RequestVerificationToken: token })
+            })
+                .then(r => r.json())
+                .then(res => {
+                    if (res && res.ok) window.location.href = '@Url.Action("Index", "Vehicles")';
+                    else alert('Delete failed');
+                })
+                .catch(() => alert('Delete failed'));
+        }
+    </script>
+}

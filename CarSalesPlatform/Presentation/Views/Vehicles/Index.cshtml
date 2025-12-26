@@ -61,13 +61,15 @@
                     searchable: false,
                     render: function (id) {
                         const detailsUrl = '@Url.Action("Details", "Vehicles")/' + id;
+                        const editUrl = '@Url.Action("Edit", "Vehicles")/' + id;
 
                         return `
-                    <a href="${detailsUrl}">Details</a> |
-                    <a href="#" onclick="openEdit(${id}); return false;">Edit</a> |
-                    <a href="#" onclick="deleteVehicle(${id}); return false;">Delete</a>
-                `;
+                <a href="${detailsUrl}">Details</a> |
+                <a href="${editUrl}">Edit</a> |
+                <a href="#" onclick="deleteVehicle(${id}); return false;">Delete</a>
+            `;
                     }
+
                 }
 
             ]
@@ -92,7 +94,7 @@
         }
 
         $('#btnCreate').on('click', function () {
-            openCreate();
+            window.location.href = '@Url.Action("Create", "Vehicles")';
         });
 
         function wireModalForm() {
