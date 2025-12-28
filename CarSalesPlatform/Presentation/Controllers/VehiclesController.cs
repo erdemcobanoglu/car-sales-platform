@@ -5,6 +5,14 @@ using Presentation.Data;
 using Presentation.Models;
 using Presentation.ViewModels.Vehicles;
 
+// ✅ ImageSharp
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Formats.Jpeg;
+
+// ✅ Çakışmayı önlemek için alias
+using ImageSharpImage = SixLabors.ImageSharp.Image;
+
 namespace Presentation.Controllers;
 
 public class VehiclesController : Controller
@@ -52,7 +60,7 @@ public class VehiclesController : Controller
                 Transmission = v.Transmission.ToString(),
                 BodyType = v.BodyType.ToString(),
 
-                // ✅ NEW: publish status
+                // ✅ publish status
                 IsPublished = v.IsPublished,
 
                 CoverPhotoUrl = v.Photos
@@ -67,7 +75,6 @@ public class VehiclesController : Controller
 
         if (!string.IsNullOrWhiteSpace(searchValue))
         {
-            // SQL LIKE için %...%
             var sLike = $"%{searchValue}%";
 
             query = query.Where(x =>
@@ -103,13 +110,7 @@ public class VehiclesController : Controller
 
         var data = await query.Skip(start).Take(length).ToListAsync();
 
-        return Json(new
-        {
-            draw,
-            recordsTotal,
-            recordsFiltered,
-            data
-        });
+        return Json(new { draw, recordsTotal, recordsFiltered, data });
     }
 
     // DETAILS (optional)
@@ -142,8 +143,9 @@ public class VehiclesController : Controller
     [HttpGet]
     public async Task<IActionResult> EditModal(int id)
     {
-        var v = await _db.Vehicles.Include(x => x.Photos.OrderBy(p => p.SortOrder))
-                                  .FirstOrDefaultAsync(x => x.Id == id);
+        var v = await _db.Vehicles
+            .Include(x => x.Photos.OrderBy(p => p.SortOrder))
+            .FirstOrDefaultAsync(x => x.Id == id);
 
         if (v == null) return NotFound();
 
@@ -166,7 +168,6 @@ public class VehiclesController : Controller
             TotalOwners = v.TotalOwners,
             NctExpiry = v.NctExpiry,
 
-            // ✅ NEW
             IsPublished = v.IsPublished,
 
             Photos = v.Photos
@@ -219,7 +220,6 @@ public class VehiclesController : Controller
                 TotalOwners = vm.TotalOwners,
                 NctExpiry = vm.NctExpiry,
 
-                // ✅ NEW
                 IsPublished = vm.IsPublished
             };
 
@@ -253,7 +253,6 @@ public class VehiclesController : Controller
         v.TotalOwners = vm.TotalOwners;
         v.NctExpiry = vm.NctExpiry;
 
-        // ✅ NEW
         v.IsPublished = vm.IsPublished;
 
         v.UpdatedAtUtc = DateTime.UtcNow;
@@ -290,7 +289,6 @@ public class VehiclesController : Controller
 
     // =========================
     // PAGE CREATE/EDIT (OLD)
-    // (istersen sonra sileriz)
     // =========================
 
     [HttpGet]
@@ -332,7 +330,6 @@ public class VehiclesController : Controller
             TotalOwners = vm.TotalOwners,
             NctExpiry = vm.NctExpiry,
 
-            // ✅ NEW
             IsPublished = vm.IsPublished
         };
 
@@ -367,7 +364,6 @@ public class VehiclesController : Controller
             TotalOwners = v.TotalOwners,
             NctExpiry = v.NctExpiry,
 
-            // ✅ NEW
             IsPublished = v.IsPublished
         };
 
@@ -410,7 +406,6 @@ public class VehiclesController : Controller
         v.TotalOwners = vm.TotalOwners;
         v.NctExpiry = vm.NctExpiry;
 
-        // ✅ NEW
         v.IsPublished = vm.IsPublished;
 
         v.UpdatedAtUtc = DateTime.UtcNow;
@@ -476,62 +471,89 @@ public class VehiclesController : Controller
             Directory.GetCurrentDirectory(), "wwwroot", "uploads", "vehicles", vehicleId.ToString());
         Directory.CreateDirectory(uploadRoot);
 
-        // 1) Taşma varsa: aşan kadar en eski fotoğrafları sil
-        var currentPhotos = vehicle.Photos
-            .OrderBy(p => p.SortOrder)
-            .ToList();
-
+        // 1) overflow varsa en eski kadar sil (large + medium + thumb)
+        var currentPhotos = vehicle.Photos.OrderBy(p => p.SortOrder).ToList();
         var totalAfter = currentPhotos.Count + files.Count;
         var overflow = totalAfter - 10;
 
         if (overflow > 0)
         {
             var toDelete = currentPhotos.Take(overflow).ToList();
-
             foreach (var p in toDelete)
             {
-                var relative = p.Url?.TrimStart('/')
-                    .Replace("/", Path.DirectorySeparatorChar.ToString());
-
-                if (!string.IsNullOrWhiteSpace(relative))
-                {
-                    var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", relative);
-                    if (System.IO.File.Exists(physicalPath))
-                        System.IO.File.Delete(physicalPath);
-                }
-
+                DeleteImageVariantsFromDisk(p.Url);
                 _db.VehiclePhotos.Remove(p);
                 vehicle.Photos.Remove(p);
             }
-
             await _db.SaveChangesAsync();
         }
 
-        // 2) Yeni fotoğrafları ekle
+        // 2) ekle
         var nextSort = vehicle.Photos.Any() ? vehicle.Photos.Max(p => p.SortOrder) + 1 : 0;
 
         foreach (var file in files)
         {
             if (file.Length <= 0) continue;
-            if (!file.ContentType.StartsWith("image/")) continue;
+            if (!string.IsNullOrWhiteSpace(file.ContentType) && !file.ContentType.StartsWith("image/"))
+                continue;
 
-            var ext = Path.GetExtension(file.FileName);
-            if (string.IsNullOrWhiteSpace(ext)) ext = ".jpg";
+            var baseName = $"{Guid.NewGuid():N}";
+            var largeFileName = $"{baseName}_large.jpg";
+            var mediumFileName = $"{baseName}_medium.jpg";
+            var thumbFileName = $"{baseName}_thumb.jpg";
 
-            var fileName = $"{Guid.NewGuid():N}{ext}";
-            var fullPath = Path.Combine(uploadRoot, fileName);
+            var largePath = Path.Combine(uploadRoot, largeFileName);
+            var mediumPath = Path.Combine(uploadRoot, mediumFileName);
+            var thumbPath = Path.Combine(uploadRoot, thumbFileName);
 
-            await using (var stream = System.IO.File.Create(fullPath))
+            try
             {
-                await file.CopyToAsync(stream);
+                await using var input = file.OpenReadStream();
+                using var img = await ImageSharpImage.LoadAsync(input);
+
+                img.Mutate(x => x.AutoOrient());
+
+                using (var large = img.Clone(x => x.Resize(new ResizeOptions
+                {
+                    Mode = ResizeMode.Max,
+                    Size = new Size(1600, 1600)
+                })))
+                {
+                    await large.SaveAsJpegAsync(largePath, new JpegEncoder { Quality = 85 });
+                }
+
+                using (var medium = img.Clone(x => x.Resize(new ResizeOptions
+                {
+                    Mode = ResizeMode.Max,
+                    Size = new Size(900, 900)
+                })))
+                {
+                    await medium.SaveAsJpegAsync(mediumPath, new JpegEncoder { Quality = 80 });
+                }
+
+                using (var thumb = img.Clone(x => x.Resize(new ResizeOptions
+                {
+                    Mode = ResizeMode.Crop,
+                    Size = new Size(400, 300)
+                })))
+                {
+                    await thumb.SaveAsJpegAsync(thumbPath, new JpegEncoder { Quality = 75 });
+                }
+            }
+            catch
+            {
+                SafeDeleteFile(largePath);
+                SafeDeleteFile(mediumPath);
+                SafeDeleteFile(thumbPath);
+                continue;
             }
 
-            var url = $"/uploads/vehicles/{vehicleId}/{fileName}";
+            var urlLarge = $"/uploads/vehicles/{vehicleId}/{largeFileName}";
 
             var photo = new VehiclePhoto
             {
                 VehicleId = vehicleId,
-                Url = url,
+                Url = urlLarge,
                 SortOrder = nextSort++,
                 IsCover = false
             };
@@ -540,7 +562,7 @@ public class VehiclesController : Controller
             vehicle.Photos.Add(photo);
         }
 
-        // 3) Cover garanti: hiç cover yoksa ilk foto cover olsun
+        // 3) cover garanti
         if (!vehicle.Photos.Any(p => p.IsCover) && vehicle.Photos.Any())
         {
             var first = vehicle.Photos.OrderBy(p => p.SortOrder).First();
@@ -549,6 +571,30 @@ public class VehiclesController : Controller
 
         await _db.SaveChangesAsync();
         return RedirectToAction(nameof(Edit), new { id = vehicleId });
+
+        // ---- local helpers ----
+        void DeleteImageVariantsFromDisk(string? urlLarge)
+        {
+            if (string.IsNullOrWhiteSpace(urlLarge)) return;
+
+            var relative = urlLarge.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
+            var wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var largePhysical = Path.Combine(wwwroot, relative);
+
+            SafeDeleteFile(largePhysical);
+            SafeDeleteFile(largePhysical.Replace("_large.jpg", "_medium.jpg"));
+            SafeDeleteFile(largePhysical.Replace("_large.jpg", "_thumb.jpg"));
+        }
+
+        void SafeDeleteFile(string path)
+        {
+            try
+            {
+                if (System.IO.File.Exists(path))
+                    System.IO.File.Delete(path);
+            }
+            catch { }
+        }
     }
 
     [HttpPost]
@@ -558,14 +604,15 @@ public class VehiclesController : Controller
         var photo = await _db.VehiclePhotos.FirstOrDefaultAsync(p => p.Id == id && p.VehicleId == vehicleId);
         if (photo == null) return NotFound();
 
-        // dosyayı da sil
-        var fullPath = Path.Combine(
+        // ✅ large + medium + thumb sil
+        var largePath = Path.Combine(
             Directory.GetCurrentDirectory(),
             "wwwroot",
             photo.Url.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString()));
 
-        if (System.IO.File.Exists(fullPath))
-            System.IO.File.Delete(fullPath);
+        SafeDeleteFile(largePath);
+        SafeDeleteFile(largePath.Replace("_large.jpg", "_medium.jpg"));
+        SafeDeleteFile(largePath.Replace("_large.jpg", "_thumb.jpg"));
 
         var wasCover = photo.IsCover;
 
@@ -589,6 +636,16 @@ public class VehiclesController : Controller
         }
 
         return RedirectToAction(nameof(Edit), new { id = vehicleId });
+
+        static void SafeDeleteFile(string path)
+        {
+            try
+            {
+                if (System.IO.File.Exists(path))
+                    System.IO.File.Delete(path);
+            }
+            catch { }
+        }
     }
 
     [HttpPost]
