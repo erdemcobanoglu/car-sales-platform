@@ -14,11 +14,9 @@ namespace Presentation.Controllers
             _db = db;
         }
 
-        // GET: /Home/Index
         [HttpGet]
         public IActionResult Index() => View();
 
-        // POST: /Home/Datatable
         [HttpPost]
         public async Task<IActionResult> Datatable()
         {
@@ -31,10 +29,9 @@ namespace Presentation.Controllers
             var sortDir = Request.Form["order[0][dir]"].FirstOrDefault();
             var sortColName = Request.Form[$"columns[{sortColIndex}][data]"].FirstOrDefault();
 
-            // ?? SADECE YAYINDA OLANLAR
             var query = _db.Vehicles
                 .AsNoTracking()
-                .Where(v => v.IsPublished) // ? kritik sat?r
+                .Where(v => v.IsPublished)
                 .Include(v => v.Make)
                 .Include(v => v.Model)
                 .Include(v => v.Trim)
@@ -97,16 +94,22 @@ namespace Presentation.Controllers
 
             var data = await query.Skip(start).Take(length).ToListAsync();
 
+            // ? LISTEDE MEDIUM KULLAN
+            foreach (var item in data)
+            {
+                if (!string.IsNullOrWhiteSpace(item.CoverPhotoUrl))
+                    item.CoverPhotoUrl = item.CoverPhotoUrl.Replace("_large.jpg", "_medium.jpg");
+            }
+
             return Json(new { draw, recordsTotal, recordsFiltered, data });
         }
 
-        // GET: /Home/Details/5
         [HttpGet]
         public async Task<IActionResult> Details(int id)
         {
             var v = await _db.Vehicles
                 .AsNoTracking()
-                .Where(x => x.IsPublished) // ? güvenlik için burada da ekli
+                .Where(x => x.IsPublished)
                 .Include(x => x.Make)
                 .Include(x => x.Model)
                 .Include(x => x.Trim)
