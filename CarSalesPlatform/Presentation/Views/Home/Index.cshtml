@@ -9,6 +9,7 @@
 <table id="vehiclesTable" class="display" style="width:100%; margin-top:12px;">
     <thead>
         <tr>
+            <th>Photo</th>
             <th>Make</th>
             <th>Model</th>
             <th>Trim</th>
@@ -35,7 +36,35 @@
                 url: datatableUrl,
                 type: 'POST'
             },
+            columnDefs: [
+                { targets: 0, width: "140px" }, // Photo
+                { targets: 8, width: "90px" }   // Details button
+            ],
             columns: [
+                {
+                    data: 'coverPhotoUrl',
+                    orderable: false,
+                    searchable: false,
+                    render: function (url, type, row) {
+                        const img = url ? url : 'https://via.placeholder.com/120x80?text=No+Photo';
+                        const detailsUrl = `${detailsBaseUrl}/${row.id}`;
+
+                        return `
+                                    <a href="${detailsUrl}" title="View details" style="display:inline-block;">
+                                        <img src="${img}"
+                                             alt="vehicle"
+                                             loading="lazy"
+                                             style="
+                                                width:120px;
+                                                height:80px;
+                                                object-fit:cover;
+                                                border-radius:6px;
+                                                border:1px solid #ddd;
+                                             " />
+                                    </a>
+                                `;
+                    }
+                },
                 { data: 'make' },
                 { data: 'model' },
                 { data: 'trim' },

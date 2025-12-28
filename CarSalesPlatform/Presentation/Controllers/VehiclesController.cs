@@ -450,26 +450,52 @@ public class VehiclesController : Controller
 
         if (vehicle == null) return NotFound();
 
-        var existingCount = vehicle.Photos.Count;
-        if (existingCount + files.Count > 10)
-        {
-            TempData["PhotoError"] = $"This vehicle already has {existingCount} photos. Max is 10.";
-            return RedirectToAction(nameof(Edit), new { id = vehicleId });
-        }
-
-        var uploadRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "vehicles", vehicleId.ToString());
+        var uploadRoot = Path.Combine(
+            Directory.GetCurrentDirectory(), "wwwroot", "uploads", "vehicles", vehicleId.ToString());
         Directory.CreateDirectory(uploadRoot);
 
-        // SortOrder: mevcut max + 1'den devam et
+        // 1) Taşma varsa: aşan kadar en eski fotoğrafları sil
+        var currentPhotos = vehicle.Photos
+            .OrderBy(p => p.SortOrder)
+            .ToList();
+
+        var totalAfter = currentPhotos.Count + files.Count;
+        var overflow = totalAfter - 10;
+
+        if (overflow > 0)
+        {
+            // "En eski"den sil: SortOrder küçük olanlar
+            // İstersen cover'ı en son silmek için burada kural ekleyebilirsin (aşağıda not var).
+            var toDelete = currentPhotos.Take(overflow).ToList();
+
+            foreach (var p in toDelete)
+            {
+                // Fiziksel dosyayı sil (Url: /uploads/vehicles/{id}/{file})
+                var relative = p.Url?.TrimStart('/')
+                    .Replace("/", Path.DirectorySeparatorChar.ToString());
+
+                if (!string.IsNullOrWhiteSpace(relative))
+                {
+                    var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", relative);
+                    if (System.IO.File.Exists(physicalPath))
+                        System.IO.File.Delete(physicalPath);
+                }
+
+                _db.VehiclePhotos.Remove(p);
+                vehicle.Photos.Remove(p);
+            }
+
+            // Silmeleri DB'ye uygula
+            await _db.SaveChangesAsync();
+        }
+
+        // 2) Yeni fotoğrafları ekle
         var nextSort = vehicle.Photos.Any() ? vehicle.Photos.Max(p => p.SortOrder) + 1 : 0;
 
         foreach (var file in files)
         {
             if (file.Length <= 0) continue;
-
-            // basit güvenlik: sadece image
-            if (!file.ContentType.StartsWith("image/"))
-                continue;
+            if (!file.ContentType.StartsWith("image/")) continue;
 
             var ext = Path.GetExtension(file.FileName);
             if (string.IsNullOrWhiteSpace(ext)) ext = ".jpg";
@@ -489,14 +515,14 @@ public class VehiclesController : Controller
                 VehicleId = vehicleId,
                 Url = url,
                 SortOrder = nextSort++,
-                IsCover = !vehicle.Photos.Any(p => p.IsCover) && !vehicle.Photos.Any() // ilk foto cover olsun
+                IsCover = false
             };
 
             _db.VehiclePhotos.Add(photo);
             vehicle.Photos.Add(photo);
         }
 
-        // Eğer hiç cover yoksa ilk fotoyu cover yap
+        // 3) Cover garanti: hiç cover yoksa ilk foto cover olsun
         if (!vehicle.Photos.Any(p => p.IsCover) && vehicle.Photos.Any())
         {
             var first = vehicle.Photos.OrderBy(p => p.SortOrder).First();
@@ -506,6 +532,7 @@ public class VehiclesController : Controller
         await _db.SaveChangesAsync();
         return RedirectToAction(nameof(Edit), new { id = vehicleId });
     }
+
 
     [HttpPost]
     [ValidateAntiForgeryToken]
