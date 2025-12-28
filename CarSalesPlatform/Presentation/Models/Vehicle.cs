@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations; 
+﻿using System.ComponentModel.DataAnnotations;
 using Presentation.Models.Enums;
 
 namespace Presentation.Models;
@@ -34,10 +34,11 @@ public class Vehicle
     public int TotalOwners { get; set; }
     public DateOnly? NctExpiry { get; set; }
 
+    // 🔹 İLAN YAYIN DURUMU
+    public bool IsPublished { get; set; } = false;
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
 
     public ICollection<VehiclePhoto> Photos { get; set; } = new List<VehiclePhoto>();
-
 }
-

@@ -20,11 +20,49 @@
     <div class="col-lg-8">
         <form id="vehicleForm" asp-action="Create" method="post">
             @Html.AntiForgeryToken()
+
+            <!-- Publish flag (Create ekranında form ile birlikte post edilsin) -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-white">
+                    <strong>Listing status</strong>
+                </div>
+                <div class="card-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" asp-for="IsPublished" />
+                        <label class="form-check-label" asp-for="IsPublished">
+                            Publish this listing now
+                        </label>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        If disabled, the vehicle will be saved as a draft (not visible publicly).
+                    </div>
+                </div>
+            </div>
+
             <partial name="_VehicleForm" model="Model" />
         </form>
     </div>
 
     <div class="col-lg-4">
+        <!-- Status summary card (opsiyonel ama güzel UX) -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-white">
+                <strong>Status</strong>
+            </div>
+            <div class="card-body">
+                @if (Model?.IsPublished == true)
+                {
+                    <span class="badge bg-success">Published</span>
+                    <div class="text-muted small mt-2">This listing will be visible after saving.</div>
+                }
+                else
+                {
+                    <span class="badge bg-secondary">Draft</span>
+                    <div class="text-muted small mt-2">This listing will not be visible until published.</div>
+                }
+            </div>
+        </div>
+
         <div class="card shadow-sm">
             <div class="card-header bg-white">
                 <strong>Tips</strong>

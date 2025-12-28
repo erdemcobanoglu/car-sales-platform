@@ -28,6 +28,8 @@ public class VehicleFormVm
 
     [Range(0, 50)] public int TotalOwners { get; set; }
     public DateOnly? NctExpiry { get; set; }
+    public bool IsPublished { get; set; }
+
     public List<VehiclePhotoVm> Photos { get; set; } = new();
 
 }

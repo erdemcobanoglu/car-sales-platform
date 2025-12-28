@@ -14,7 +14,7 @@ namespace Presentation.Controllers
             _db = db;
         }
 
-        // GET: /Home/Index   (veya / default route'ta Home/Index)
+        // GET: /Home/Index
         [HttpGet]
         public IActionResult Index() => View();
 
@@ -31,8 +31,10 @@ namespace Presentation.Controllers
             var sortDir = Request.Form["order[0][dir]"].FirstOrDefault();
             var sortColName = Request.Form[$"columns[{sortColIndex}][data]"].FirstOrDefault();
 
+            // ?? SADECE YAYINDA OLANLAR
             var query = _db.Vehicles
                 .AsNoTracking()
+                .Where(v => v.IsPublished) // ? kritik sat?r
                 .Include(v => v.Make)
                 .Include(v => v.Model)
                 .Include(v => v.Trim)
@@ -104,6 +106,7 @@ namespace Presentation.Controllers
         {
             var v = await _db.Vehicles
                 .AsNoTracking()
+                .Where(x => x.IsPublished) // ? güvenlik için burada da ekli
                 .Include(x => x.Make)
                 .Include(x => x.Model)
                 .Include(x => x.Trim)

@@ -14,6 +14,7 @@ public class VehicleListItemVm
     public string FuelType { get; set; } = "";
     public string Transmission { get; set; } = "";
     public string BodyType { get; set; } = "";
+    public bool IsPublished { get; set; }
 
     public string? CoverPhotoUrl { get; set; }
 }

@@ -51,6 +51,10 @@ public class VehiclesController : Controller
                 FuelType = v.FuelType.ToString(),
                 Transmission = v.Transmission.ToString(),
                 BodyType = v.BodyType.ToString(),
+
+                // ✅ NEW: publish status
+                IsPublished = v.IsPublished,
+
                 CoverPhotoUrl = v.Photos
                     .OrderBy(p => p.SortOrder)
                     .Where(p => p.IsCover)
@@ -161,16 +165,19 @@ public class VehiclesController : Controller
             Colour = v.Colour,
             TotalOwners = v.TotalOwners,
             NctExpiry = v.NctExpiry,
-            Photos = v.Photos
-            .OrderBy(p => p.SortOrder)
-            .Select(p => new VehiclePhotoVm
-            {
-                Id = p.Id,
-                Url = p.Url,
-                SortOrder = p.SortOrder,
-                IsCover = p.IsCover
-            }).ToList(),
 
+            // ✅ NEW
+            IsPublished = v.IsPublished,
+
+            Photos = v.Photos
+                .OrderBy(p => p.SortOrder)
+                .Select(p => new VehiclePhotoVm
+                {
+                    Id = p.Id,
+                    Url = p.Url,
+                    SortOrder = p.SortOrder,
+                    IsCover = p.IsCover
+                }).ToList(),
         };
 
         await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
@@ -210,7 +217,10 @@ public class VehiclesController : Controller
                 Colour = vm.Colour,
 
                 TotalOwners = vm.TotalOwners,
-                NctExpiry = vm.NctExpiry
+                NctExpiry = vm.NctExpiry,
+
+                // ✅ NEW
+                IsPublished = vm.IsPublished
             };
 
             _db.Vehicles.Add(entity);
@@ -242,6 +252,9 @@ public class VehiclesController : Controller
 
         v.TotalOwners = vm.TotalOwners;
         v.NctExpiry = vm.NctExpiry;
+
+        // ✅ NEW
+        v.IsPublished = vm.IsPublished;
 
         v.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -317,7 +330,10 @@ public class VehiclesController : Controller
             Colour = vm.Colour,
 
             TotalOwners = vm.TotalOwners,
-            NctExpiry = vm.NctExpiry
+            NctExpiry = vm.NctExpiry,
+
+            // ✅ NEW
+            IsPublished = vm.IsPublished
         };
 
         _db.Vehicles.Add(entity);
@@ -349,7 +365,10 @@ public class VehiclesController : Controller
             Doors = v.Doors,
             Colour = v.Colour,
             TotalOwners = v.TotalOwners,
-            NctExpiry = v.NctExpiry
+            NctExpiry = v.NctExpiry,
+
+            // ✅ NEW
+            IsPublished = v.IsPublished
         };
 
         await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
@@ -390,6 +409,9 @@ public class VehiclesController : Controller
 
         v.TotalOwners = vm.TotalOwners;
         v.NctExpiry = vm.NctExpiry;
+
+        // ✅ NEW
+        v.IsPublished = vm.IsPublished;
 
         v.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -464,13 +486,10 @@ public class VehiclesController : Controller
 
         if (overflow > 0)
         {
-            // "En eski"den sil: SortOrder küçük olanlar
-            // İstersen cover'ı en son silmek için burada kural ekleyebilirsin (aşağıda not var).
             var toDelete = currentPhotos.Take(overflow).ToList();
 
             foreach (var p in toDelete)
             {
-                // Fiziksel dosyayı sil (Url: /uploads/vehicles/{id}/{file})
                 var relative = p.Url?.TrimStart('/')
                     .Replace("/", Path.DirectorySeparatorChar.ToString());
 
@@ -485,7 +504,6 @@ public class VehiclesController : Controller
                 vehicle.Photos.Remove(p);
             }
 
-            // Silmeleri DB'ye uygula
             await _db.SaveChangesAsync();
         }
 
@@ -533,7 +551,6 @@ public class VehiclesController : Controller
         return RedirectToAction(nameof(Edit), new { id = vehicleId });
     }
 
-
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeletePhoto(int id, int vehicleId)
@@ -542,7 +559,11 @@ public class VehiclesController : Controller
         if (photo == null) return NotFound();
 
         // dosyayı da sil
-        var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", photo.Url.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString()));
+        var fullPath = Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "wwwroot",
+            photo.Url.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString()));
+
         if (System.IO.File.Exists(fullPath))
             System.IO.File.Delete(fullPath);
 
@@ -586,5 +607,4 @@ public class VehiclesController : Controller
         await _db.SaveChangesAsync();
         return RedirectToAction(nameof(Edit), new { id = vehicleId });
     }
-
 }

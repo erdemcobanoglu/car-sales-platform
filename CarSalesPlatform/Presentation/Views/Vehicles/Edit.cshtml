@@ -22,11 +22,49 @@
         <form id="vehicleForm" asp-action="Edit" asp-route-id="@Model.Id" method="post">
             @Html.AntiForgeryToken()
             <input type="hidden" asp-for="Id" />
+
+            <!-- ✅ Listing Status (Publish / Unpublish) -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-white">
+                    <strong>Listing status</strong>
+                </div>
+                <div class="card-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" asp-for="IsPublished" />
+                        <label class="form-check-label" asp-for="IsPublished">
+                            Published
+                        </label>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        Toggle off to unpublish (keeps the listing saved but hidden).
+                    </div>
+                </div>
+            </div>
+
             <partial name="_VehicleForm" model="Model" />
         </form>
     </div>
 
     <div class="col-lg-4">
+        <!-- ✅ Status summary (sağda hızlı görünürlük) -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-white">
+                <strong>Status</strong>
+            </div>
+            <div class="card-body">
+                @if (Model.IsPublished)
+                {
+                    <span class="badge bg-success">Published</span>
+                    <div class="text-muted small mt-2">Visible publicly.</div>
+                }
+                else
+                {
+                    <span class="badge bg-secondary">Unpublished</span>
+                    <div class="text-muted small mt-2">Hidden from public listings.</div>
+                }
+            </div>
+        </div>
+
         <div class="card shadow-sm mb-3">
             <div class="card-header bg-white">
                 <strong>Quick actions</strong>
@@ -132,7 +170,6 @@
     </div>
 }
 
-
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
@@ -180,8 +217,6 @@
                 }
             }
 
-            // Edit sayfasında initial state doğru gelsin:
-            // Make değişince model/trim reload eder
             makeSel?.addEventListener('change', async () => {
                 await loadModels(makeSel.value);
             });
@@ -190,7 +225,6 @@
                 await loadTrims(modelSel.value);
             });
 
-            // ilk açılışta trim listesi dolu değilse doldur
             if (modelSel && modelSel.value) {
                 loadTrims(modelSel.value);
             }
