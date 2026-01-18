@@ -311,8 +311,7 @@ public async Task<IActionResult> MyData()
 ## 8) UI: Login olan kullanıcıya göre butonlar
 
 Razor’da:
-
-```cshtml
+ 
 @if (User.Identity?.IsAuthenticated == true)
 {
     <a class="btn btn-primary" asp-action="Create">İlan Ver</a>

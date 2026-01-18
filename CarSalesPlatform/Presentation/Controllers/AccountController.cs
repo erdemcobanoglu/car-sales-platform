@@ -19,11 +19,18 @@ public class AccountController : Controller
     public IActionResult Register() => View();
 
     [HttpPost]
-    public async Task<IActionResult> Register(string email, string password)
+    public async Task<IActionResult> Register(string email, string password, string passwordConfirm)
     {
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
-            ModelState.AddModelError("", "Email ve şifre zorunlu.");
+            ModelState.AddModelError("", "Email and password are required.");
+            return View();
+        }
+
+        // Password confirmation check
+        if (password != passwordConfirm)
+        {
+            ModelState.AddModelError("passwordConfirm", "Passwords do not match.");
             return View();
         }
 
@@ -41,6 +48,7 @@ public class AccountController : Controller
         await _signInManager.SignInAsync(user, isPersistent: false);
         return RedirectToAction("Index", "Home");
     }
+
 
     [HttpGet]
     public IActionResult Login() => View();
