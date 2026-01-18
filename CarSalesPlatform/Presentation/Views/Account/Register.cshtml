@@ -1,0 +1,9 @@
+﻿<form method="post">
+    <input name="email" placeholder="Email" />
+    <input name="password" type="password" placeholder="Şifre" />
+    <button type="submit">Register</button>
+    @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+    {
+        <div>@err.ErrorMessage</div>
+    }
+</form>

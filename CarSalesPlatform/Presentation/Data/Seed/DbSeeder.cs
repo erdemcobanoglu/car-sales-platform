@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Presentation.Models;
 using Presentation.Models.Enums;
 
@@ -6,23 +7,59 @@ namespace Presentation.Data.Seed;
 
 public static class DbSeeder
 {
-    public static async Task SeedAsync(AppDbContext db)
+    public static async Task SeedAsync(AppDbContext db, UserManager<ApplicationUser> userManager)
     {
         await using var tx = await db.Database.BeginTransactionAsync();
 
-        // Zaten araç varsa tekrar seed basma (idempotent)
+        // 0) Seed user (Vehicles.OwnerId için kullanılacak)
+        const string seedEmail = "seed@local.com";
+
+        // Identity default policy'ye takılmasın diye güçlü şifre:
+        const string seedPassword = "Seed!12345";
+
+        var seedUser = await userManager.FindByEmailAsync(seedEmail);
+        if (seedUser == null)
+        {
+            seedUser = new ApplicationUser
+            {
+                UserName = seedEmail,
+                Email = seedEmail,
+                EmailConfirmed = true
+            };
+
+            var createResult = await userManager.CreateAsync(seedUser, seedPassword);
+            if (!createResult.Succeeded)
+                throw new Exception("Seed user oluşturulamadı: " +
+                                    string.Join(" | ", createResult.Errors.Select(e => e.Description)));
+        }
+
+        var ownerId = seedUser.Id;
+
+        // 1) Mevcut araçlarda OwnerId boşsa düzelt (idempotent)
+        var badVehicles = await db.Vehicles
+            .Where(v => v.OwnerId == null || v.OwnerId == "")
+            .ToListAsync();
+
+        foreach (var v in badVehicles)
+            v.OwnerId = ownerId;
+
+        if (badVehicles.Count > 0)
+            await db.SaveChangesAsync();
+
+        // Zaten araç varsa tekrar seed basma
         if (await db.Vehicles.AnyAsync())
+        {
+            await tx.CommitAsync();
             return;
+        }
 
         // ===== LOOKUP SEED (Make/Model/Trim) =====
-        // Makes
         var ford = await EnsureMake(db, "Ford");
         var vw = await EnsureMake(db, "Volkswagen");
         var bmw = await EnsureMake(db, "BMW");
         var toy = await EnsureMake(db, "Toyota");
         var audi = await EnsureMake(db, "Audi");
 
-        // Models
         var smax = await EnsureModel(db, ford, "S-Max");
         var focus = await EnsureModel(db, ford, "Focus");
         var golf = await EnsureModel(db, vw, "Golf");
@@ -34,7 +71,6 @@ public static class DbSeeder
         var a4 = await EnsureModel(db, audi, "A4");
         var q5 = await EnsureModel(db, audi, "Q5");
 
-        // Trims
         var zetec = await EnsureTrim(db, smax, "Zetec", "Base Trim");
         var titanium = await EnsureTrim(db, smax, "Titanium", "Mid Trim");
         var trend = await EnsureTrim(db, focus, "Trend", "Base Trim");
@@ -49,8 +85,7 @@ public static class DbSeeder
 
         await db.SaveChangesAsync();
 
-        // ===== 15 ADET TEST VEHICLE =====
-        // Basit ve deterministik bir liste (istersen daha da çeşitlendiririz)
+        // ===== TEST VEHICLES =====
         var vehiclesToCreate = new List<(Make make, VehicleModel model, Trim? trim, int year, int mileage, double engine, FuelType fuel, TransmissionType trans, BodyType body, int seats, int doors, string colour, int owners, DateOnly? nct)>
         {
             (ford, smax, zetec,    2017,  91344, 2.0, FuelType.Diesel,  TransmissionType.Automatic, BodyType.MPV, 7, 5, "Silver", 2, new DateOnly(2025,11,1)),
@@ -76,6 +111,8 @@ public static class DbSeeder
         {
             var vehicle = new Vehicle
             {
+                OwnerId = ownerId, // ✅ default seed user
+
                 MakeId = v.make.Id,
                 ModelId = v.model.Id,
                 TrimId = v.trim?.Id,
@@ -94,7 +131,9 @@ public static class DbSeeder
                 Colour = v.colour,
 
                 TotalOwners = v.owners,
-                NctExpiry = v.nct
+                NctExpiry = v.nct,
+
+                IsPublished = true
             };
 
             db.Vehicles.Add(vehicle);
@@ -103,14 +142,12 @@ public static class DbSeeder
 
         await db.SaveChangesAsync();
 
-        // ===== FOTO SEED (Her araca 5 foto: max 10 kuralına uygun) =====
-        // URL'ler örnek path; gerçek upload yoksa görüntüler kırık çıkar, ama DB verisi test için hazır olur.
-        const int photosPerVehicle = 5; // <= 10 olmalı
+        // ===== FOTO SEED =====
+        const int photosPerVehicle = 5;
         int vehicleIndex = 1;
 
         foreach (var vehicle in createdVehicles)
         {
-            // Kapak foto: 0. sırayı cover yapıyoruz
             for (int i = 0; i < photosPerVehicle; i++)
             {
                 db.VehiclePhotos.Add(new VehiclePhoto
@@ -144,7 +181,12 @@ public static class DbSeeder
         var model = await db.Models.FirstOrDefaultAsync(x => x.MakeId == make.Id && x.Name == name);
         if (model is not null) return model;
 
-        model = new VehicleModel { MakeId = make.Id, Name = name };
+        model = new VehicleModel
+        {
+            MakeId = make.Id,
+            Name = name
+        };
+
         db.Models.Add(model);
         await db.SaveChangesAsync();
         return model;

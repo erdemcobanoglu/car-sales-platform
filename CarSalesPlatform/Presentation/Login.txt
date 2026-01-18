@@ -1,0 +1,339 @@
+﻿Süper—MSSQL + EF Core zaten var, şimdi **ASP.NET Core Identity** ekleyip:
+
+1. **Login/Logout**
+2. **İlan (Vehicle) sadece giriş yapan kullanıcıya ait olsun**
+3. **Kullanıcı sadece kendi ilanını Create/Edit/Delete edebilsin**
+4. Listeleme (DataTables) ister “herkes görsün”, ister “sadece benim ilanlarım” filtrelenebilsin
+
+bunu kuracağız.
+
+Aşağıdaki yol .NET 8 MVC için en temiz/standart kurulum.
+
+---
+
+## 1) Vehicle’a “Owner” alanı ekle
+
+`Vehicle` entity’sine Identity User id’sini bağlayan alan ekle:
+
+```csharp
+public class Vehicle
+{
+    public int Id { get; set; }
+
+    public string Title { get; set; } = default!;
+    public string Brand { get; set; } = default!;
+    public string Model { get; set; } = default!;
+    public int Year { get; set; }
+    public decimal Price { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // 🔐 sahiplik
+    public string OwnerId { get; set; } = default!;
+
+    public ICollection<VehiclePhoto> Photos { get; set; } = new List<VehiclePhoto>();
+}
+```
+
+> Identity default olarak User Id `string` (GUID) gelir.
+
+---
+
+## 2) DbContext’i Identity ile birleştir
+
+Senin `AppDbContext` şu an normal `DbContext` ise bunu `IdentityDbContext` yapacağız.
+
+Önce `ApplicationUser` tanımla (şimdilik boş bırakabilirsin):
+
+```csharp
+using Microsoft.AspNetCore.Identity;
+
+public class ApplicationUser : IdentityUser
+{
+}
+```
+
+Sonra DbContext:
+
+```csharp
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+
+public class AppDbContext : IdentityDbContext<ApplicationUser>
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    public DbSet<Vehicle> Vehicles => Set<Vehicle>();
+    public DbSet<VehiclePhoto> VehiclePhotos => Set<VehiclePhoto>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<Vehicle>(e =>
+        {
+            e.Property(x => x.Title).HasMaxLength(150).IsRequired();
+            e.Property(x => x.Brand).HasMaxLength(80).IsRequired();
+            e.Property(x => x.Model).HasMaxLength(80).IsRequired();
+            e.Property(x => x.Price).HasPrecision(18, 2);
+
+            e.Property(x => x.OwnerId).HasMaxLength(450).IsRequired(); // SQL Server nvarchar(450)
+        });
+
+        modelBuilder.Entity<VehiclePhoto>(e =>
+        {
+            e.Property(x => x.FileName).HasMaxLength(260).IsRequired();
+            e.Property(x => x.OriginalName).HasMaxLength(260).IsRequired();
+
+            e.HasOne(x => x.Vehicle)
+             .WithMany(x => x.Photos)
+             .HasForeignKey(x => x.VehicleId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // MSSQL: aynı araçta tek cover garanti etmek istersen:
+        modelBuilder.Entity<VehiclePhoto>()
+            .HasIndex(p => new { p.VehicleId, p.IsCover })
+            .IsUnique()
+            .HasFilter("[IsCover] = 1");
+    }
+}
+```
+
+---
+
+## 3) Program.cs: Identity + Cookie ayarları
+
+```csharp
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllersWithViews();
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services
+    .AddIdentity<ApplicationUser, IdentityRole>(options =>
+    {
+        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequireUppercase = false;
+        // istersen lockout vs ayarlarsın
+    })
+    .AddEntityFrameworkStores<AppDbContext>()
+    .AddDefaultTokenProviders();
+
+// Identity UI kullanacaksak:
+builder.Services.AddRazorPages();
+
+var app = builder.Build();
+
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+
+app.UseRouting();
+
+app.UseAuthentication(); // ✅
+app.UseAuthorization();  // ✅
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.MapRazorPages(); // ✅ Identity UI için
+
+app.Run();
+```
+
+---
+
+## 4) Identity sayfaları (Login/Register/Logout)
+
+En pratik yol: **“Individual Accounts”** ile proje oluşturmak gibi davranmak.
+
+Eğer mevcut projeye ekliyorsan Visual Studio’da:
+
+* **Add > New Scaffolded Item**
+* **Identity**
+* “Login, Register, Logout” (veya tümünü) seç
+* DbContext olarak `AppDbContext` seç
+
+Bu işlem `/Areas/Identity/...` altında sayfaları oluşturur.
+
+> Eğer “scaffold istemiyorum” dersen, default UI’yı da kullanabiliriz; ama pratikte scaffold iyi.
+
+---
+
+## 5) Migration + DB update
+
+```bash
+dotnet ef migrations add AddIdentityAndOwner
+dotnet ef database update
+```
+
+Bu noktada DB’ye:
+
+* `AspNetUsers`, `AspNetRoles`, … tabloları
+* `Vehicles.OwnerId` kolonu
+  gelmiş olacak.
+
+---
+
+## 6) VehiclesController: sadece login olan Create/Edit/Delete
+
+Controller’a `[Authorize]` koyabiliriz ama listeleme herkes görsün istiyorsan sadece bazı action’lara koy:
+
+```csharp
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+public class VehiclesController : Controller
+{
+    private readonly AppDbContext _db;
+    private readonly UserManager<ApplicationUser> _userManager;
+
+    public VehiclesController(AppDbContext db, UserManager<ApplicationUser> userManager)
+    {
+        _db = db;
+        _userManager = userManager;
+    }
+
+    // Herkes görsün:
+    public IActionResult Index() => View();
+
+    [Authorize]
+    public IActionResult My() => View(); // "Benim ilanlarım" sayfası (istersen)
+```
+
+### Create: OwnerId set et
+
+```csharp
+    [Authorize]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(Vehicle model /* + foto viewmodelin */)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        model.OwnerId = userId;
+
+        _db.Vehicles.Add(model);
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(Index));
+    }
+```
+
+### Edit/Delete: “bu ilan bana mı ait?” kontrolü
+
+```csharp
+    [Authorize]
+    public async Task<IActionResult> Edit(int id)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var vehicle = await _db.Vehicles
+            .Include(v => v.Photos)
+            .FirstOrDefaultAsync(v => v.Id == id);
+
+        if (vehicle == null) return NotFound();
+        if (vehicle.OwnerId != userId) return Forbid(); // ✅
+
+        return View("Upsert", vehicle); // senin aynı UI yaklaşımın
+    }
+
+    [Authorize]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, Vehicle model)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var vehicle = await _db.Vehicles.FirstOrDefaultAsync(v => v.Id == id);
+        if (vehicle == null) return NotFound();
+        if (vehicle.OwnerId != userId) return Forbid();
+
+        vehicle.Title = model.Title;
+        vehicle.Brand = model.Brand;
+        vehicle.Model = model.Model;
+        vehicle.Year = model.Year;
+        vehicle.Price = model.Price;
+
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Index));
+    }
+```
+
+---
+
+## 7) DataTables JSON endpoint: “My listings” filtreli
+
+İki farklı endpoint öneriyorum:
+
+* `/Vehicles/Data` → herkesin gördüğü (istersen public)
+* `/Vehicles/MyData` → sadece giriş yapana ait
+
+```csharp
+[HttpPost]
+public async Task<IActionResult> Data()
+{
+    var data = await _db.Vehicles
+        .OrderByDescending(v => v.Id)
+        .Select(v => new { v.Id, v.Title, v.Brand, v.Model, v.Year, v.Price })
+        .ToListAsync();
+
+    return Json(new { data });
+}
+
+[Authorize]
+[HttpPost]
+public async Task<IActionResult> MyData()
+{
+    var userId = _userManager.GetUserId(User)!;
+
+    var data = await _db.Vehicles
+        .Where(v => v.OwnerId == userId)
+        .OrderByDescending(v => v.Id)
+        .Select(v => new { v.Id, v.Title, v.Brand, v.Model, v.Year, v.Price })
+        .ToListAsync();
+
+    return Json(new { data });
+}
+```
+
+> Senin DataTables server-side (draw/start/length/search) kullanıyorsan onu da aynı `Where(v.OwnerId == userId)` filtresiyle genişletiriz.
+
+---
+
+## 8) UI: Login olan kullanıcıya göre butonlar
+
+Razor’da:
+
+```cshtml
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <a class="btn btn-primary" asp-action="Create">İlan Ver</a>
+    <a class="btn btn-outline-secondary" asp-action="My">Benim İlanlarım</a>
+}
+```
+
+---
+
+## Buradan sonraki adım (bugün bunu bağlayalım)
+
+Senin projede “Details/Create/Edit aynı UI” ve “foto upload max 10 + cover foto” zaten konuştuğumuz akışa oturuyor.
+
+Bir sonraki hamle olarak ben şunu öneriyorum:
+
+* **Upsert ViewModel** yapalım: `Vehicle + ExistingPhotos + NewFiles + CoverPhotoId`
+* Edit ekranında:
+
+  * mevcut foto galerisi
+  * “cover seç” radio
+  * foto sil
+  * yeni foto ekle (max 10 sınırı)
+
+İstersen hiç soru sormadan devam edeyim: **sen şu an Identity scaffold yaptın mı, yoksa ben “minimal login/register” MVC Controller + View olarak mı kurayım?** (Hangisi daha uygunsa ona göre doğrudan kodu o şekilde yazacağım.)

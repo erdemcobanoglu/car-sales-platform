@@ -12,6 +12,8 @@ public class VehicleModel
 
     [MaxLength(120)]
     public string Name { get; set; } = "";
+     
+
 
     public ICollection<Trim> Trims { get; set; } = new List<Trim>();
     public ICollection<Vehicle> Vehicles { get; set; } = new List<Vehicle>();

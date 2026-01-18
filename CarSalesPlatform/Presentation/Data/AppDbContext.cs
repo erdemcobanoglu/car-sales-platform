@@ -1,9 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Presentation.Models;
 
 namespace Presentation.Data;
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<ApplicationUser>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -29,6 +30,17 @@ public class AppDbContext : DbContext
         b.Entity<Trim>()
             .HasIndex(x => new { x.ModelId, x.Name })
             .IsUnique();
+
+        // ===== VEHICLE OWNER (Identity) =====
+        b.Entity<Vehicle>()
+            .Property(x => x.OwnerId)
+            .IsRequired();
+
+        b.Entity<Vehicle>()
+            .HasOne(x => x.Owner)
+            .WithMany()
+            .HasForeignKey(x => x.OwnerId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // ===== VEHICLE =====
         b.Entity<Vehicle>()
@@ -69,12 +81,10 @@ public class AppDbContext : DbContext
             .HasForeignKey(p => p.VehicleId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Aynı araçta aynı SortOrder olamaz
         b.Entity<VehiclePhoto>()
             .HasIndex(p => new { p.VehicleId, p.SortOrder })
             .IsUnique();
 
-        // Aynı araçta sadece 1 tane cover olsun (SQL Server filtered unique index)
         b.Entity<VehiclePhoto>()
             .HasIndex(p => new { p.VehicleId, p.IsCover })
             .IsUnique()
