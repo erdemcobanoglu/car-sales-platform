@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿ 
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Presentation.Data;
 using Presentation.Data.Seed;
@@ -9,14 +10,11 @@ var builder = WebApplication.CreateBuilder(args);
 // MVC
 builder.Services.AddControllersWithViews();
 
-// ✅ Identity UI (Login/Register/Logout) Razor Pages olduğu için şart
-builder.Services.AddRazorPages();
-
 // DbContext (SQL Server)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 
-// ✅ Identity
+// ✅ Identity (MVC AccountController kullanıyorsun)
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(options =>
     {
@@ -29,11 +27,11 @@ builder.Services
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
-// ✅ Cookie ayarları
+// ✅ Cookie ayarları (Authorize -> MVC /Account/Login’e yönlendir)
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    options.LoginPath = "/Identity/Account/Login";
-    options.AccessDeniedPath = "/Identity/Account/AccessDenied";
+    options.LoginPath = "/Account/Login";
+    options.AccessDeniedPath = "/Account/Denied";
 });
 
 var app = builder.Build();
@@ -56,10 +54,8 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
-// ✅ Identity UI sayfaları için şart
-app.MapRazorPages();
-
 // ===== MIGRATION + SEED =====
+// Not: Prod'da seed istemiyorsan burayı env'e bağla.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -70,3 +66,4 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+ 

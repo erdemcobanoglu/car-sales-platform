@@ -16,7 +16,7 @@
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
             <div class="container-fluid">
 
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Presentation</a>
+                <a class="navbar-brand" asp-controller="Home" asp-action="Index">Presentation</a>
 
                 <button class="navbar-toggler" type="button"
                         data-bs-toggle="collapse"
@@ -32,10 +32,10 @@
                     <!-- Sol menü -->
                     <ul class="navbar-nav flex-grow-1">
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                            <a class="nav-link text-dark" asp-controller="Home" asp-action="Index">Home</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                            <a class="nav-link text-dark" asp-controller="Home" asp-action="Privacy">Privacy</a>
                         </li>
 
                         @* ✅ Vehicles sadece login olmuş kullanıcıya görünsün *@
@@ -71,8 +71,9 @@
                                     <li><hr class="dropdown-divider" /></li>
 
                                     <li>
-                                        <!-- Identity Logout POST ister -->
-                                        <form asp-area="Identity" asp-page="/Account/Logout" method="post" class="d-inline">
+                                        @* ✅ Logout artık senin MVC AccountController'ına gidecek (POST) *@
+                                        <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
                                             <button type="submit" class="dropdown-item">Logout</button>
                                         </form>
                                     </li>
@@ -82,10 +83,10 @@
                         else
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Login">Login</a>
+                                <a class="nav-link text-dark" asp-controller="Account" asp-action="Login">Login</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Register">Register</a>
+                                <a class="nav-link text-dark" asp-controller="Account" asp-action="Register">Register</a>
                             </li>
                         }
                     </ul>
@@ -104,7 +105,7 @@
     <footer class="border-top footer text-muted">
         <div class="container">
             &copy; 2025 - Presentation -
-            <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+            <a asp-controller="Home" asp-action="Privacy">Privacy</a>
         </div>
     </footer>
 
