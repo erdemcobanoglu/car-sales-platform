@@ -12,9 +12,11 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 
 // ✅ Çakışmayı önlemek için alias
 using ImageSharpImage = SixLabors.ImageSharp.Image;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Presentation.Controllers;
 
+[Authorize]
 public class VehiclesController : Controller
 {
     private readonly AppDbContext _db;
