@@ -9,11 +9,14 @@ var builder = WebApplication.CreateBuilder(args);
 // MVC
 builder.Services.AddControllersWithViews();
 
+// ✅ Identity UI (Login/Register/Logout) Razor Pages olduğu için şart
+builder.Services.AddRazorPages();
+
 // DbContext (SQL Server)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 
-// ✅ Identity (Login/Register için şart)
+// ✅ Identity
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(options =>
     {
@@ -26,11 +29,11 @@ builder.Services
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
-// ✅ Cookie ayarları (Authorize -> login’e yönlendirir)
+// ✅ Cookie ayarları
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    options.LoginPath = "/account/login";
-    options.AccessDeniedPath = "/account/denied";
+    options.LoginPath = "/Identity/Account/Login";
+    options.AccessDeniedPath = "/Identity/Account/AccessDenied";
 });
 
 var app = builder.Build();
@@ -46,13 +49,15 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
-// ✅ Sıra önemli
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// ✅ Identity UI sayfaları için şart
+app.MapRazorPages();
 
 // ===== MIGRATION + SEED =====
 using (var scope = app.Services.CreateScope())

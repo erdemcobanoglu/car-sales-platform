@@ -1,0 +1,156 @@
+﻿Aşağıdaki şekilde yaparsan sağ üstte “Profile / Login / Register” alanı görünür:
+
+* **Login olmuşsa:** sağ üstte kullanıcı adı + “Profile” + “Logout”
+* **Login değilse:** “Login” + “Register”
+
+Ayrıca Profile’a tıklayınca **kullanıcının profil sayfasına** gider.
+
+---
+
+## 1) `_Layout.cshtml` içine sağ üst profile alanı ekle
+
+Senin layout’ta şu kısmı bul:
+
+```html
+<div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+    <ul class="navbar-nav flex-grow-1">
+```
+
+Bunu aşağıdaki gibi güncelle (ikinci bir `<ul>` ekliyoruz):
+
+```cshtml
+<div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+    <ul class="navbar-nav flex-grow-1">
+        <li class="nav-item">
+            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link text-dark" asp-controller="Vehicles" asp-action="Index">Vehicles</a>
+        </li>
+    </ul>
+
+    <!-- ✅ Sağ üst: Login / Profile alanı -->
+    <ul class="navbar-nav ms-auto">
+        @if (User?.Identity?.IsAuthenticated ?? false)
+        {
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle text-dark"
+                   href="#"
+                   id="profileDropdown"
+                   role="button"
+                   data-bs-toggle="dropdown"
+                   aria-expanded="false">
+                    @((User.Identity?.Name) ?? "Profile")
+                </a>
+
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
+                    <li>
+                        <a class="dropdown-item"
+                           asp-controller="Profile"
+                           asp-action="Index">
+                            Profile
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider" /></li>
+                    <li>
+                        <form asp-area="Identity" asp-page="/Account/Logout" method="post" class="d-inline">
+                            <button type="submit" class="dropdown-item">Logout</button>
+                        </form>
+                    </li>
+                </ul>
+            </li>
+        }
+        else
+        {
+            <li class="nav-item">
+                <a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Login">Login</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Register">Register</a>
+            </li>
+        }
+    </ul>
+</div>
+```
+
+> Not: Logout action’ı Identity Razor Pages’te **POST** olduğu için form kullandım (doğru yöntem).
+
+---
+
+## 2) Profile sayfası için basit bir controller ekle
+
+`Controllers/ProfileController.cs`
+
+```csharp
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+
+namespace Presentation.Controllers;
+
+[Authorize]
+public class ProfileController : Controller
+{
+    public IActionResult Index()
+    {
+        var vm = new ProfileVm
+        {
+            UserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "",
+            UserName = User.Identity?.Name ?? ""
+        };
+
+        return View(vm);
+    }
+}
+
+public class ProfileVm
+{
+    public string UserId { get; set; } = "";
+    public string UserName { get; set; } = "";
+}
+```
+
+---
+
+## 3) View ekle
+
+`Views/Profile/Index.cshtml`
+
+```cshtml
+@model Presentation.Controllers.ProfileVm
+
+<h2>Profil</h2>
+
+<div class="card">
+    <div class="card-body">
+        <div><strong>UserName:</strong> @Model.UserName</div>
+        <div><strong>UserId:</strong> @Model.UserId</div>
+    </div>
+</div>
+```
+
+---
+
+## 4) Eğer Login/Register linkleri çalışmıyorsa
+
+Projende Identity UI yoksa, şu satırın olduğundan emin ol:
+
+* `Program.cs` içinde genelde:
+
+```csharp
+app.MapRazorPages();
+```
+
+ve servislerde:
+
+```csharp
+builder.Services.AddDefaultIdentity<ApplicationUser>()
+    .AddEntityFrameworkStores<AppDbContext>();
+```
+
+---
+
+İstersen profile sayfasına “Benim ilanlarım (Vehicles)” listesini de ekleyeyim: sadece `OwnerId == currentUserId` olan araçları çekeriz.

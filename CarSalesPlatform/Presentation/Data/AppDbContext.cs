@@ -13,6 +13,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<VehicleModel> Models => Set<VehicleModel>();
     public DbSet<Trim> Trims => Set<Trim>();
     public DbSet<VehiclePhoto> VehiclePhotos => Set<VehiclePhoto>();
+    public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -31,6 +33,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(x => new { x.ModelId, x.Name })
             .IsUnique();
 
+        #region VEHICLE OWNER
         // ===== VEHICLE OWNER (Identity) =====
         b.Entity<Vehicle>()
             .Property(x => x.OwnerId)
@@ -40,8 +43,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(x => x.Owner)
             .WithMany()
             .HasForeignKey(x => x.OwnerId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict); 
+        #endregion
 
+        #region Vehicle
         // ===== VEHICLE =====
         b.Entity<Vehicle>()
             .Property(x => x.EngineLiters)
@@ -63,8 +68,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(x => x.Trim)
             .WithMany(x => x.Vehicles)
             .HasForeignKey(x => x.TrimId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.SetNull); 
+        #endregion
 
+        #region VehiclePhoto
         // ===== VEHICLE PHOTO =====
         b.Entity<VehiclePhoto>()
             .Property(p => p.Url)
@@ -88,6 +95,28 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         b.Entity<VehiclePhoto>()
             .HasIndex(p => new { p.VehicleId, p.IsCover })
             .IsUnique()
-            .HasFilter("[IsCover] = 1");
+            .HasFilter("[IsCover] = 1"); 
+        #endregion
+
+        #region UserProfile
+        b.Entity<UserProfile>()
+            .HasOne(p => p.User)
+            .WithOne(u => u.Profile)
+            .HasForeignKey<UserProfile>(p => p.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<UserProfile>()
+            .Property(p => p.FullName)
+            .HasMaxLength(120);
+
+        b.Entity<UserProfile>()
+            .Property(p => p.Phone)
+            .HasMaxLength(30);
+
+        b.Entity<UserProfile>()
+            .Property(p => p.City)
+            .HasMaxLength(200); 
+        #endregion
+
     }
 }
