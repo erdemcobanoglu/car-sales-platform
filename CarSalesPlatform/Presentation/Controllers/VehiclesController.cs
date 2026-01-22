@@ -13,6 +13,7 @@ using SixLabors.ImageSharp.Processing;
 
 // ✅ Çakışmayı önlemek için alias
 using ImageSharpImage = SixLabors.ImageSharp.Image;
+using VehicleTrim = Presentation.Models.Trim;
 
 namespace Presentation.Controllers;
 
@@ -26,11 +27,10 @@ public class VehiclesController : Controller
         _db = db;
     }
 
-
-
     private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
-    private static string Norm(string? s) => (s ?? string.Empty).Trim();
+    // ✅ Normalize: trim + UPPER (Audi/audi/AUDI tek olsun)
+    private static string Norm(string? s) => (s ?? string.Empty).Trim().ToUpperInvariant();
 
     // =========================
     // LIST PAGE
@@ -505,7 +505,9 @@ public class VehiclesController : Controller
         }
 
         // 2) ekle
-        var nextSort = vehicle.Photos.Any() ? vehicle.Photos.Max(p => p.SortOrder) + 1 : 0;
+        var nextSort = vehicle.Photos.Any()
+            ? vehicle.Photos.Max(p => p.SortOrder) + 1
+            : 0;
 
         foreach (var file in files)
         {
@@ -722,7 +724,8 @@ public class VehiclesController : Controller
         return model;
     }
 
-    private async Task<Trim?> GetOrCreateTrimAsync(int modelId, string? trimName)
+    // ✅ alias kullanıldı (VehicleTrim)
+    private async Task<VehicleTrim?> GetOrCreateTrimAsync(int modelId, string? trimName)
     {
         trimName = Norm(trimName);
 
@@ -732,7 +735,7 @@ public class VehiclesController : Controller
         var trim = await _db.Trims.FirstOrDefaultAsync(x => x.ModelId == modelId && x.Name == trimName);
         if (trim != null) return trim;
 
-        trim = new Trim { ModelId = modelId, Name = trimName };
+        trim = new VehicleTrim { ModelId = modelId, Name = trimName };
         _db.Trims.Add(trim);
         await _db.SaveChangesAsync();
         return trim;
