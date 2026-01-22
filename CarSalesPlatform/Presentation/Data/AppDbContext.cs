@@ -15,7 +15,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<VehiclePhoto> VehiclePhotos => Set<VehiclePhoto>();
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
 
-
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -33,20 +32,22 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(x => new { x.ModelId, x.Name })
             .IsUnique();
 
-        #region VEHICLE OWNER
-        // ===== VEHICLE OWNER (Identity) =====
+        // =========================
+        // VEHICLE OWNER (Identity)
+        // =========================
         b.Entity<Vehicle>()
             .Property(x => x.OwnerId)
             .IsRequired();
 
         b.Entity<Vehicle>()
-            .HasOne(x => x.Owner)
-            .WithMany()
-            .HasForeignKey(x => x.OwnerId)
-            .OnDelete(DeleteBehavior.Restrict); 
-        #endregion
+            .HasIndex(x => x.OwnerId); // ✅ performans için
 
-        #region Vehicle
+        b.Entity<Vehicle>()
+            .HasOne(x => x.Owner)
+            .WithMany() // ApplicationUser tarafında collection şart değil
+            .HasForeignKey(x => x.OwnerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // ===== VEHICLE =====
         b.Entity<Vehicle>()
             .Property(x => x.EngineLiters)
@@ -68,10 +69,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(x => x.Trim)
             .WithMany(x => x.Vehicles)
             .HasForeignKey(x => x.TrimId)
-            .OnDelete(DeleteBehavior.SetNull); 
-        #endregion
+            .OnDelete(DeleteBehavior.SetNull);
 
-        #region VehiclePhoto
         // ===== VEHICLE PHOTO =====
         b.Entity<VehiclePhoto>()
             .Property(p => p.Url)
@@ -95,10 +94,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         b.Entity<VehiclePhoto>()
             .HasIndex(p => new { p.VehicleId, p.IsCover })
             .IsUnique()
-            .HasFilter("[IsCover] = 1"); 
-        #endregion
+            .HasFilter("[IsCover] = 1");
 
-        #region UserProfile
+        // ===== USER PROFILE =====
         b.Entity<UserProfile>()
             .HasOne(p => p.User)
             .WithOne(u => u.Profile)
@@ -115,8 +113,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         b.Entity<UserProfile>()
             .Property(p => p.City)
-            .HasMaxLength(200); 
-        #endregion
-
+            .HasMaxLength(200);
     }
 }

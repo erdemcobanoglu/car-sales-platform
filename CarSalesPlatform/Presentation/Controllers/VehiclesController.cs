@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Presentation.Data;
@@ -7,12 +9,11 @@ using Presentation.ViewModels.Vehicles;
 
 // ✅ ImageSharp
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Processing;
 
 // ✅ Çakışmayı önlemek için alias
 using ImageSharpImage = SixLabors.ImageSharp.Image;
-using Microsoft.AspNetCore.Authorization;
 
 namespace Presentation.Controllers;
 
@@ -26,6 +27,8 @@ public class VehiclesController : Controller
         _db = db;
     }
 
+    private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
     // LIST PAGE
     [HttpGet]
     public IActionResult Index() => View();
@@ -34,6 +37,8 @@ public class VehiclesController : Controller
     [HttpPost]
     public async Task<IActionResult> Datatable()
     {
+        var userId = CurrentUserId;
+
         var draw = Request.Form["draw"].FirstOrDefault();
         var start = int.TryParse(Request.Form["start"].FirstOrDefault(), out var s) ? s : 0;
         var length = int.TryParse(Request.Form["length"].FirstOrDefault(), out var l) ? l : 10;
@@ -45,6 +50,7 @@ public class VehiclesController : Controller
 
         var query = _db.Vehicles
             .AsNoTracking()
+            .Where(v => v.OwnerId == userId) // ✅ ONLY OWN VEHICLES
             .Include(v => v.Make)
             .Include(v => v.Model)
             .Include(v => v.Trim)
@@ -62,7 +68,6 @@ public class VehiclesController : Controller
                 Transmission = v.Transmission.ToString(),
                 BodyType = v.BodyType.ToString(),
 
-                // ✅ publish status
                 IsPublished = v.IsPublished,
 
                 CoverPhotoUrl = v.Photos
@@ -119,13 +124,15 @@ public class VehiclesController : Controller
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
+        var userId = CurrentUserId;
+
         var v = await _db.Vehicles
             .AsNoTracking()
             .Include(x => x.Make)
             .Include(x => x.Model)
             .Include(x => x.Trim)
             .Include(x => x.Photos.OrderBy(p => p.SortOrder))
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId); // ✅ owner check
 
         if (v == null) return NotFound();
         return View(v);
@@ -145,9 +152,11 @@ public class VehiclesController : Controller
     [HttpGet]
     public async Task<IActionResult> EditModal(int id)
     {
+        var userId = CurrentUserId;
+
         var v = await _db.Vehicles
             .Include(x => x.Photos.OrderBy(p => p.SortOrder))
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId); // ✅ owner check
 
         if (v == null) return NotFound();
 
@@ -191,6 +200,8 @@ public class VehiclesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveModal(VehicleFormVm vm)
     {
+        var userId = CurrentUserId;
+
         if (!ModelState.IsValid)
         {
             await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
@@ -202,6 +213,8 @@ public class VehiclesController : Controller
         {
             var entity = new Vehicle
             {
+                OwnerId = userId, // ✅ set owner
+
                 MakeId = vm.MakeId,
                 ModelId = vm.ModelId,
                 TrimId = vm.TrimId,
@@ -231,8 +244,8 @@ public class VehiclesController : Controller
             return Json(new { ok = true });
         }
 
-        // UPDATE
-        var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == vm.Id.Value);
+        // UPDATE (✅ only own vehicle)
+        var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == vm.Id.Value && x.OwnerId == userId);
         if (v == null) return NotFound();
 
         v.MakeId = vm.MakeId;
@@ -265,6 +278,7 @@ public class VehiclesController : Controller
     }
 
     // Dependent dropdown endpoints (NEW)
+    // Not: bunlar lookup, owner gerekmiyor.
     [HttpGet]
     public async Task<IActionResult> GetModels(int makeId)
     {
@@ -304,6 +318,8 @@ public class VehiclesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(VehicleFormVm vm)
     {
+        var userId = CurrentUserId;
+
         if (!ModelState.IsValid)
         {
             await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
@@ -312,6 +328,8 @@ public class VehiclesController : Controller
 
         var entity = new Vehicle
         {
+            OwnerId = userId, // ✅ set owner
+
             MakeId = vm.MakeId,
             ModelId = vm.ModelId,
             TrimId = vm.TrimId,
@@ -344,7 +362,9 @@ public class VehiclesController : Controller
     [HttpGet]
     public async Task<IActionResult> Edit(int id)
     {
-        var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == id);
+        var userId = CurrentUserId;
+
+        var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId); // ✅ owner check
         if (v == null) return NotFound();
 
         var vm = new VehicleFormVm
@@ -377,9 +397,11 @@ public class VehiclesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(int id, VehicleFormVm vm)
     {
+        var userId = CurrentUserId;
+
         if (id != vm.Id) return BadRequest();
 
-        var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == id);
+        var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId); // ✅ owner check
         if (v == null) return NotFound();
 
         if (!ModelState.IsValid)
@@ -421,9 +443,11 @@ public class VehiclesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
+        var userId = CurrentUserId;
+
         var v = await _db.Vehicles
             .Include(x => x.Photos)
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId); // ✅ owner check
 
         if (v == null) return NotFound();
 
@@ -454,6 +478,8 @@ public class VehiclesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UploadPhotos(int vehicleId, List<IFormFile> files)
     {
+        var userId = CurrentUserId;
+
         if (files == null || files.Count == 0)
             return RedirectToAction(nameof(Edit), new { id = vehicleId });
 
@@ -465,7 +491,7 @@ public class VehiclesController : Controller
 
         var vehicle = await _db.Vehicles
             .Include(v => v.Photos)
-            .FirstOrDefaultAsync(v => v.Id == vehicleId);
+            .FirstOrDefaultAsync(v => v.Id == vehicleId && v.OwnerId == userId); // ✅ owner check
 
         if (vehicle == null) return NotFound();
 
@@ -603,6 +629,14 @@ public class VehiclesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeletePhoto(int id, int vehicleId)
     {
+        var userId = CurrentUserId;
+
+        // ✅ vehicle owner check (çok önemli)
+        var isOwner = await _db.Vehicles.AsNoTracking()
+            .AnyAsync(v => v.Id == vehicleId && v.OwnerId == userId);
+
+        if (!isOwner) return NotFound();
+
         var photo = await _db.VehiclePhotos.FirstOrDefaultAsync(p => p.Id == id && p.VehicleId == vehicleId);
         if (photo == null) return NotFound();
 
@@ -654,6 +688,14 @@ public class VehiclesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SetCover(int id, int vehicleId)
     {
+        var userId = CurrentUserId;
+
+        // ✅ vehicle owner check
+        var isOwner = await _db.Vehicles.AsNoTracking()
+            .AnyAsync(v => v.Id == vehicleId && v.OwnerId == userId);
+
+        if (!isOwner) return NotFound();
+
         var photos = await _db.VehiclePhotos
             .Where(p => p.VehicleId == vehicleId)
             .ToListAsync();
