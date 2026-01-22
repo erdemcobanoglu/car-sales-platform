@@ -1,0 +1,16 @@
+﻿@model Presentation.ViewModels.Profile.ChangeEmailVm
+
+
+<h3>Change Email</h3>
+
+<form method="post">
+    @Html.AntiForgeryToken()
+
+    <div class="mb-3">
+        <label class="form-label">New email</label>
+        <input asp-for="NewEmail" class="form-control" />
+        <span class="text-danger" asp-validation-for="NewEmail"></span>
+    </div>
+
+    <button class="btn btn-primary">Update Email</button>
+</form>

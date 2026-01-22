@@ -18,5 +18,6 @@ public class UserProfile
     [MaxLength(200)]
     public string? City { get; set; }
 
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
