@@ -26,7 +26,6 @@
     </div>
 </div>
 
-
 <div class="card shadow-sm">
     <div class="card-body">
         <form asp-action="Update" method="post">
@@ -37,7 +36,7 @@
                 <label class="form-label">Username</label>
                 <input class="form-control" value="@Model.UserName" disabled />
             </div>
-             
+
             <hr />
 
             <!-- EDITABLE -->
@@ -63,6 +62,23 @@
                 Save changes
             </button>
         </form>
+    </div>
+</div>
+
+<!-- ✅ SECURITY ACTIONS -->
+<div class="card shadow-sm mt-4">
+    <div class="card-header bg-white">
+        <strong>Security</strong>
+    </div>
+
+    <div class="card-body d-grid gap-2">
+        <a asp-action="ChangeEmail" class="btn btn-outline-primary">
+            Change email address
+        </a>
+
+        <a asp-action="ChangePassword" class="btn btn-outline-secondary">
+            Change password
+        </a>
     </div>
 </div>
 
