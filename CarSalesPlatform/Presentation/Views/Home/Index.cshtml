@@ -1,10 +1,28 @@
 ﻿@{
     ViewData["Title"] = "Vehicles";
+    var q = (ViewBag.Search as string) ?? "";
 }
 
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css" />
 
-<h2>Vehicles</h2>
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <h2 class="mb-0">Vehicles</h2>
+        @if (!string.IsNullOrWhiteSpace(q))
+        {
+            <div class="text-muted">Results for: <strong>@q</strong></div>
+        }
+        else
+        {
+            <div class="text-muted">Browse published listings</div>
+        }
+    </div>
+</div>
+
+@* ✅ Anti-forgery token (DataTables POST için) *@
+<form id="dtAntiForgery" method="post" class="d-none">
+    @Html.AntiForgeryToken()
+</form>
 
 <table id="vehiclesTable" class="display" style="width:100%; margin-top:12px;">
     <thead>
@@ -26,19 +44,38 @@
     <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 
     <script>
-        const datatableUrl = '@Url.Action("Datatable", "Home")';
-        const detailsBaseUrl = '@Url.Action("Details", "Home")'; // /Home/Details
+        const datatableBaseUrl = '@Url.Action("Datatable", "Home")';
+        const detailsBaseUrl = '@Url.Action("Details", "Home")';
 
-        const table = $('#vehiclesTable').DataTable({
+        const q = '@(q.Replace("'", "\\'"))';
+        const datatableUrl = q
+            ? `${datatableBaseUrl}?q=${encodeURIComponent(q)}`
+            : datatableBaseUrl;
+
+        // ✅ token'ı hidden formdan al
+        const token = document.querySelector('#dtAntiForgery input[name="__RequestVerificationToken"]').value;
+
+        $('#vehiclesTable').DataTable({
             serverSide: true,
             processing: true,
             ajax: {
                 url: datatableUrl,
-                type: 'POST'
+                type: 'POST',
+                // ✅ Token'ı form field olarak gönder (en uyumlu yol)
+                data: function (d) {
+                    d.__RequestVerificationToken = token;
+                },
+                error: function (xhr, error, thrown) {
+                    // Debug için: tarayıcı console'da gerçek hatayı görürsün
+                    console.error("DataTables AJAX error:", { xhr, error, thrown });
+                    console.error("Response:", xhr?.responseText);
+                }
             },
+            pageLength: 10,
+            lengthMenu: [10, 25, 50],
             columnDefs: [
-                { targets: 0, width: "140px" }, // Photo
-                { targets: 8, width: "90px" }   // Details button
+                { targets: 0, width: "140px" },
+                { targets: 8, width: "90px" }
             ],
             columns: [
                 {
@@ -50,19 +87,19 @@
                         const detailsUrl = `${detailsBaseUrl}/${row.id}`;
 
                         return `
-                                    <a href="${detailsUrl}" title="View details" style="display:inline-block;">
-                                        <img src="${img}"
-                                             alt="vehicle"
-                                             loading="lazy"
-                                             style="
-                                                width:120px;
-                                                height:80px;
-                                                object-fit:cover;
-                                                border-radius:6px;
-                                                border:1px solid #ddd;
-                                             " />
-                                    </a>
-                                `;
+                            <a href="${detailsUrl}" title="View details" style="display:inline-block;">
+                                <img src="${img}"
+                                     alt="vehicle"
+                                     loading="lazy"
+                                     style="
+                                        width:120px;
+                                        height:80px;
+                                        object-fit:cover;
+                                        border-radius:6px;
+                                        border:1px solid #ddd;
+                                     " />
+                            </a>
+                        `;
                     }
                 },
                 { data: 'make' },
@@ -77,7 +114,7 @@
                     orderable: false,
                     searchable: false,
                     render: function (id) {
-                        const detailsUrl = `${detailsBaseUrl}/${id}`; // /Home/Details/5
+                        const detailsUrl = `${detailsBaseUrl}/${id}`;
                         return `<a class="btn btn-sm btn-outline-primary" href="${detailsUrl}">Details</a>`;
                     }
                 }

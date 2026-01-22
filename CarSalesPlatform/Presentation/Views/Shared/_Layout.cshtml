@@ -1,5 +1,4 @@
-﻿ 
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -37,13 +36,6 @@
 
                     <!-- Left menu -->
                     <ul class="navbar-nav me-lg-3 mb-2 mb-lg-0">
-                       @*  <li class="nav-item">
-                            <a class="nav-link" asp-controller="Home" asp-action="Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#">Browse</a>
-                        </li> *@
-
                         @if (User?.Identity?.IsAuthenticated ?? false)
                         {
                             <li class="nav-item">
@@ -52,16 +44,17 @@
                         }
                     </ul>
 
-                    <!-- Center search (Bootstrap only) -->
+                    <!-- ✅ Center search (guest friendly) -->
                     <form class="d-flex flex-grow-1 mx-lg-3 my-2 my-lg-0"
                           method="get"
-                          asp-controller="Vehicles"
+                          asp-controller="Home"
                           asp-action="Index">
                         <div class="input-group w-100">
                             <span class="input-group-text bg-white">🔎</span>
                             <input class="form-control"
                                    type="search"
                                    name="q"
+                                   value="@(ViewBag.Search ?? "")"
                                    placeholder="Search make, model, year..."
                                    aria-label="Search" />
                             <button class="btn btn-dark" type="submit">Search</button>
@@ -143,4 +136,3 @@
 
 </body>
 </html>
-```
