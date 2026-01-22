@@ -19,7 +19,6 @@
     </div>
 </div>
 
-@* ✅ Anti-forgery token (DataTables POST için) *@
 <form id="dtAntiForgery" method="post" class="d-none">
     @Html.AntiForgeryToken()
 </form>
@@ -52,31 +51,31 @@
             ? `${datatableBaseUrl}?q=${encodeURIComponent(q)}`
             : datatableBaseUrl;
 
-        // ✅ token'ı hidden formdan al
         const token = document.querySelector('#dtAntiForgery input[name="__RequestVerificationToken"]').value;
 
         $('#vehiclesTable').DataTable({
             serverSide: true,
             processing: true,
+
+            searching: false, // ✅ Search box gitti
+            dom: 'rtip',      // ✅ Buttons yok, filter yok => Create gibi şeyler çıkmaz
+
             ajax: {
                 url: datatableUrl,
                 type: 'POST',
-                // ✅ Token'ı form field olarak gönder (en uyumlu yol)
                 data: function (d) {
                     d.__RequestVerificationToken = token;
-                },
-                error: function (xhr, error, thrown) {
-                    // Debug için: tarayıcı console'da gerçek hatayı görürsün
-                    console.error("DataTables AJAX error:", { xhr, error, thrown });
-                    console.error("Response:", xhr?.responseText);
                 }
             },
+
             pageLength: 10,
             lengthMenu: [10, 25, 50],
+
             columnDefs: [
                 { targets: 0, width: "140px" },
                 { targets: 8, width: "90px" }
             ],
+
             columns: [
                 {
                     data: 'coverPhotoUrl',
@@ -87,19 +86,13 @@
                         const detailsUrl = `${detailsBaseUrl}/${row.id}`;
 
                         return `
-                            <a href="${detailsUrl}" title="View details" style="display:inline-block;">
-                                <img src="${img}"
-                                     alt="vehicle"
-                                     loading="lazy"
-                                     style="
-                                        width:120px;
-                                        height:80px;
-                                        object-fit:cover;
-                                        border-radius:6px;
-                                        border:1px solid #ddd;
-                                     " />
-                            </a>
-                        `;
+                                    <a href="${detailsUrl}" title="View details" style="display:inline-block;">
+                                        <img src="${img}"
+                                             alt="vehicle"
+                                             loading="lazy"
+                                             style="width:120px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #ddd;" />
+                                    </a>
+                                `;
                     }
                 },
                 { data: 'make' },
