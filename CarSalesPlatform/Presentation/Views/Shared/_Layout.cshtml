@@ -13,84 +13,111 @@
 
 <body>
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+        <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
             <div class="container-fluid">
 
-                <a class="navbar-brand" asp-controller="Home" asp-action="Index">Presentation</a>
+                <!-- Brand -->
+                <a class="navbar-brand d-flex align-items-center gap-2 fw-bold"
+                   asp-controller="Home" asp-action="Index">
+                    <span class="badge bg-dark text-white rounded-pill px-3 py-2">CSI</span>
+                    <span class="text-primary">Car Sales Ireland</span>
+                    <span class="badge bg-light text-dark border">Marketplace</span>
+                </a>
 
                 <button class="navbar-toggler" type="button"
                         data-bs-toggle="collapse"
-                        data-bs-target=".navbar-collapse"
-                        aria-controls="navbarSupportedContent"
+                        data-bs-target="#topNav"
+                        aria-controls="topNav"
                         aria-expanded="false"
                         aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
 
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                <div class="collapse navbar-collapse" id="topNav">
 
-                    <!-- Sol menü -->
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="Home" asp-action="Index">Home</a>
+                    <!-- Left menu -->
+                    <ul class="navbar-nav me-lg-3 mb-2 mb-lg-0">
+                       @*  <li class="nav-item">
+                            <a class="nav-link" asp-controller="Home" asp-action="Index">Home</a>
                         </li>
-                        @* <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">Browse</a>
                         </li> *@
 
-                        
                         @if (User?.Identity?.IsAuthenticated ?? false)
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Vehicles" asp-action="Index">Vehicles</a>
+                                <a class="nav-link" asp-controller="Vehicles" asp-action="Index">My vehicles</a>
                             </li>
                         }
                     </ul>
 
-                    <!-- Sağ üst: Login / Profile -->
-                    <ul class="navbar-nav ms-auto">
+                    <!-- Center search (Bootstrap only) -->
+                    <form class="d-flex flex-grow-1 mx-lg-3 my-2 my-lg-0"
+                          method="get"
+                          asp-controller="Vehicles"
+                          asp-action="Index">
+                        <div class="input-group w-100">
+                            <span class="input-group-text bg-white">🔎</span>
+                            <input class="form-control"
+                                   type="search"
+                                   name="q"
+                                   placeholder="Search make, model, year..."
+                                   aria-label="Search" />
+                            <button class="btn btn-dark" type="submit">Search</button>
+                        </div>
+                    </form>
+
+                    <!-- Right actions -->
+                    <div class="d-flex align-items-center gap-2 ms-lg-auto">
                         @if (User?.Identity?.IsAuthenticated ?? false)
                         {
-                            <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle text-dark"
+                            <a class="btn btn-warning fw-semibold"
+                               asp-controller="Vehicles"
+                               asp-action="Create">
+                                + Sell your car
+                            </a>
+
+                            <div class="dropdown">
+                                <a class="btn btn-outline-secondary dropdown-toggle text-truncate"
+                                   style="max-width: 260px;"
                                    href="#"
                                    id="profileDropdown"
                                    role="button"
                                    data-bs-toggle="dropdown"
                                    aria-expanded="false">
-                                    @((User.Identity?.Name) ?? "Profile")
+                                    @((User.Identity?.Name) ?? "Account")
                                 </a>
 
                                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
                                     <li>
-                                        <a class="dropdown-item" asp-controller="Profile" asp-action="Index">
-                                            Profile
-                                        </a>
+                                        <a class="dropdown-item" asp-controller="Profile" asp-action="Index">My profile</a>
                                     </li>
-
-                                    <li><hr class="dropdown-divider" /></li>
-
                                     <li>
-                                        @* ✅ Logout artık senin MVC AccountController'ına gidecek (POST) *@
+                                        <a class="dropdown-item" asp-controller="Vehicles" asp-action="Index">My vehicles</a>
+                                    </li>
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li>
                                         <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
                                             <button type="submit" class="dropdown-item">Logout</button>
                                         </form>
                                     </li>
                                 </ul>
-                            </li>
+                            </div>
                         }
                         else
                         {
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Account" asp-action="Login">Login</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Account" asp-action="Register">Register</a>
-                            </li>
+                            <a class="btn btn-outline-secondary"
+                               asp-controller="Account" asp-action="Login">
+                                Login
+                            </a>
+                            <a class="btn btn-dark"
+                               asp-controller="Account" asp-action="Register">
+                                Register
+                            </a>
                         }
-                    </ul>
-
+                    </div>
                 </div>
             </div>
         </nav>
