@@ -1,7 +1,6 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Presentation.Data;
 using Presentation.Models;
@@ -27,9 +26,15 @@ public class VehiclesController : Controller
         _db = db;
     }
 
+
+
     private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
+    private static string Norm(string? s) => (s ?? string.Empty).Trim();
+
+    // =========================
     // LIST PAGE
+    // =========================
     [HttpGet]
     public IActionResult Index() => View();
 
@@ -50,7 +55,7 @@ public class VehiclesController : Controller
 
         var query = _db.Vehicles
             .AsNoTracking()
-            .Where(v => v.OwnerId == userId) // ✅ ONLY OWN VEHICLES
+            .Where(v => v.OwnerId == userId)
             .Include(v => v.Make)
             .Include(v => v.Model)
             .Include(v => v.Trim)
@@ -67,9 +72,7 @@ public class VehiclesController : Controller
                 FuelType = v.FuelType.ToString(),
                 Transmission = v.Transmission.ToString(),
                 BodyType = v.BodyType.ToString(),
-
                 IsPublished = v.IsPublished,
-
                 CoverPhotoUrl = v.Photos
                     .OrderBy(p => p.SortOrder)
                     .Where(p => p.IsCover)
@@ -83,7 +86,6 @@ public class VehiclesController : Controller
         if (!string.IsNullOrWhiteSpace(searchValue))
         {
             var sLike = $"%{searchValue}%";
-
             query = query.Where(x =>
                 EF.Functions.Like(x.Make, sLike) ||
                 EF.Functions.Like(x.Model, sLike) ||
@@ -120,7 +122,9 @@ public class VehiclesController : Controller
         return Json(new { draw, recordsTotal, recordsFiltered, data });
     }
 
-    // DETAILS (optional)
+    // =========================
+    // DETAILS
+    // =========================
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
@@ -132,22 +136,19 @@ public class VehiclesController : Controller
             .Include(x => x.Model)
             .Include(x => x.Trim)
             .Include(x => x.Photos.OrderBy(p => p.SortOrder))
-            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId); // ✅ owner check
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId);
 
         if (v == null) return NotFound();
         return View(v);
     }
 
     // =========================
-    // MODAL CREATE/EDIT (NEW)
+    // MODAL CREATE/EDIT
     // =========================
 
     [HttpGet]
-    public async Task<IActionResult> CreateModal()
-    {
-        await FillLookups();
-        return PartialView("_VehicleFormModal", new VehicleFormVm());
-    }
+    public IActionResult CreateModal()
+        => PartialView("_VehicleFormModal", new VehicleFormVm());
 
     [HttpGet]
     public async Task<IActionResult> EditModal(int id)
@@ -155,17 +156,23 @@ public class VehiclesController : Controller
         var userId = CurrentUserId;
 
         var v = await _db.Vehicles
+            .Include(x => x.Make)
+            .Include(x => x.Model)
+            .Include(x => x.Trim)
             .Include(x => x.Photos.OrderBy(p => p.SortOrder))
-            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId); // ✅ owner check
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId);
 
         if (v == null) return NotFound();
 
         var vm = new VehicleFormVm
         {
             Id = v.Id,
-            MakeId = v.MakeId,
-            ModelId = v.ModelId,
-            TrimId = v.TrimId,
+
+            // ✅ free text fields
+            MakeName = v.Make?.Name ?? "",
+            ModelName = v.Model?.Name ?? "",
+            TrimName = v.Trim?.Name,
+
             Year = v.Year,
             Mileage = v.Mileage,
             MileageUnit = v.MileageUnit,
@@ -178,7 +185,6 @@ public class VehiclesController : Controller
             Colour = v.Colour,
             TotalOwners = v.TotalOwners,
             NctExpiry = v.NctExpiry,
-
             IsPublished = v.IsPublished,
 
             Photos = v.Photos
@@ -192,7 +198,6 @@ public class VehiclesController : Controller
                 }).ToList(),
         };
 
-        await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
         return PartialView("_VehicleFormModal", vm);
     }
 
@@ -202,55 +207,62 @@ public class VehiclesController : Controller
     {
         var userId = CurrentUserId;
 
+        // Basic validation for free text (dropdown yok artık)
+        vm.MakeName = Norm(vm.MakeName);
+        vm.ModelName = Norm(vm.ModelName);
+        vm.TrimName = string.IsNullOrWhiteSpace(vm.TrimName) ? null : Norm(vm.TrimName);
+
+        if (string.IsNullOrWhiteSpace(vm.MakeName))
+            ModelState.AddModelError(nameof(vm.MakeName), "Make is required.");
+
+        if (string.IsNullOrWhiteSpace(vm.ModelName))
+            ModelState.AddModelError(nameof(vm.ModelName), "Model is required.");
+
         if (!ModelState.IsValid)
-        {
-            await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
             return PartialView("_VehicleFormModal", vm);
-        }
+
+        var make = await GetOrCreateMakeAsync(vm.MakeName);
+        var model = await GetOrCreateModelAsync(make.Id, vm.ModelName);
+        var trim = await GetOrCreateTrimAsync(model.Id, vm.TrimName);
 
         // CREATE
         if (vm.Id is null || vm.Id <= 0)
         {
             var entity = new Vehicle
             {
-                OwnerId = userId, // ✅ set owner
+                OwnerId = userId,
 
-                MakeId = vm.MakeId,
-                ModelId = vm.ModelId,
-                TrimId = vm.TrimId,
+                MakeId = make.Id,
+                ModelId = model.Id,
+                TrimId = trim?.Id,
 
                 Year = vm.Year,
                 Mileage = vm.Mileage,
                 MileageUnit = vm.MileageUnit,
-
                 EngineLiters = vm.EngineLiters,
                 FuelType = vm.FuelType,
                 Transmission = vm.Transmission,
                 BodyType = vm.BodyType,
-
                 Seats = vm.Seats,
                 Doors = vm.Doors,
                 Colour = vm.Colour,
-
                 TotalOwners = vm.TotalOwners,
                 NctExpiry = vm.NctExpiry,
-
                 IsPublished = vm.IsPublished
             };
 
             _db.Vehicles.Add(entity);
             await _db.SaveChangesAsync();
-
             return Json(new { ok = true });
         }
 
-        // UPDATE (✅ only own vehicle)
+        // UPDATE
         var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == vm.Id.Value && x.OwnerId == userId);
         if (v == null) return NotFound();
 
-        v.MakeId = vm.MakeId;
-        v.ModelId = vm.ModelId;
-        v.TrimId = vm.TrimId;
+        v.MakeId = make.Id;
+        v.ModelId = model.Id;
+        v.TrimId = trim?.Id;
 
         v.Year = vm.Year;
         v.Mileage = vm.Mileage;
@@ -269,50 +281,19 @@ public class VehiclesController : Controller
         v.NctExpiry = vm.NctExpiry;
 
         v.IsPublished = vm.IsPublished;
-
         v.UpdatedAtUtc = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
-
         return Json(new { ok = true });
     }
 
-    // Dependent dropdown endpoints (NEW)
-    // Not: bunlar lookup, owner gerekmiyor.
-    [HttpGet]
-    public async Task<IActionResult> GetModels(int makeId)
-    {
-        var items = await _db.Models.AsNoTracking()
-            .Where(x => x.MakeId == makeId)
-            .OrderBy(x => x.Name)
-            .Select(x => new { x.Id, x.Name })
-            .ToListAsync();
-
-        return Json(items);
-    }
-
-    [HttpGet]
-    public async Task<IActionResult> GetTrims(int modelId)
-    {
-        var items = await _db.Trims.AsNoTracking()
-            .Where(x => x.ModelId == modelId)
-            .OrderBy(x => x.Name)
-            .Select(x => new { x.Id, x.Name })
-            .ToListAsync();
-
-        return Json(items);
-    }
-
     // =========================
-    // PAGE CREATE/EDIT (OLD)
+    // PAGE CREATE/EDIT
     // =========================
 
     [HttpGet]
-    public async Task<IActionResult> Create()
-    {
-        await FillLookups();
-        return View(new VehicleFormVm());
-    }
+    public IActionResult Create()
+        => View(new VehicleFormVm());
 
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -320,36 +301,43 @@ public class VehiclesController : Controller
     {
         var userId = CurrentUserId;
 
+        vm.MakeName = Norm(vm.MakeName);
+        vm.ModelName = Norm(vm.ModelName);
+        vm.TrimName = string.IsNullOrWhiteSpace(vm.TrimName) ? null : Norm(vm.TrimName);
+
+        if (string.IsNullOrWhiteSpace(vm.MakeName))
+            ModelState.AddModelError(nameof(vm.MakeName), "Make is required.");
+
+        if (string.IsNullOrWhiteSpace(vm.ModelName))
+            ModelState.AddModelError(nameof(vm.ModelName), "Model is required.");
+
         if (!ModelState.IsValid)
-        {
-            await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
             return View(vm);
-        }
+
+        var make = await GetOrCreateMakeAsync(vm.MakeName);
+        var model = await GetOrCreateModelAsync(make.Id, vm.ModelName);
+        var trim = await GetOrCreateTrimAsync(model.Id, vm.TrimName);
 
         var entity = new Vehicle
         {
-            OwnerId = userId, // ✅ set owner
+            OwnerId = userId,
 
-            MakeId = vm.MakeId,
-            ModelId = vm.ModelId,
-            TrimId = vm.TrimId,
+            MakeId = make.Id,
+            ModelId = model.Id,
+            TrimId = trim?.Id,
 
             Year = vm.Year,
             Mileage = vm.Mileage,
             MileageUnit = vm.MileageUnit,
-
             EngineLiters = vm.EngineLiters,
             FuelType = vm.FuelType,
             Transmission = vm.Transmission,
             BodyType = vm.BodyType,
-
             Seats = vm.Seats,
             Doors = vm.Doors,
             Colour = vm.Colour,
-
             TotalOwners = vm.TotalOwners,
             NctExpiry = vm.NctExpiry,
-
             IsPublished = vm.IsPublished
         };
 
@@ -364,15 +352,22 @@ public class VehiclesController : Controller
     {
         var userId = CurrentUserId;
 
-        var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId); // ✅ owner check
+        var v = await _db.Vehicles
+            .Include(x => x.Make)
+            .Include(x => x.Model)
+            .Include(x => x.Trim)
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId);
+
         if (v == null) return NotFound();
 
         var vm = new VehicleFormVm
         {
             Id = v.Id,
-            MakeId = v.MakeId,
-            ModelId = v.ModelId,
-            TrimId = v.TrimId,
+
+            MakeName = v.Make?.Name ?? "",
+            ModelName = v.Model?.Name ?? "",
+            TrimName = v.Trim?.Name,
+
             Year = v.Year,
             Mileage = v.Mileage,
             MileageUnit = v.MileageUnit,
@@ -385,11 +380,9 @@ public class VehiclesController : Controller
             Colour = v.Colour,
             TotalOwners = v.TotalOwners,
             NctExpiry = v.NctExpiry,
-
             IsPublished = v.IsPublished
         };
 
-        await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
         return View(vm);
     }
 
@@ -401,35 +394,42 @@ public class VehiclesController : Controller
 
         if (id != vm.Id) return BadRequest();
 
-        var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId); // ✅ owner check
+        var v = await _db.Vehicles.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId);
         if (v == null) return NotFound();
 
-        if (!ModelState.IsValid)
-        {
-            await FillLookups(vm.MakeId, vm.ModelId, vm.TrimId);
-            return View(vm);
-        }
+        vm.MakeName = Norm(vm.MakeName);
+        vm.ModelName = Norm(vm.ModelName);
+        vm.TrimName = string.IsNullOrWhiteSpace(vm.TrimName) ? null : Norm(vm.TrimName);
 
-        v.MakeId = vm.MakeId;
-        v.ModelId = vm.ModelId;
-        v.TrimId = vm.TrimId;
+        if (string.IsNullOrWhiteSpace(vm.MakeName))
+            ModelState.AddModelError(nameof(vm.MakeName), "Make is required.");
+
+        if (string.IsNullOrWhiteSpace(vm.ModelName))
+            ModelState.AddModelError(nameof(vm.ModelName), "Model is required.");
+
+        if (!ModelState.IsValid)
+            return View(vm);
+
+        var make = await GetOrCreateMakeAsync(vm.MakeName);
+        var model = await GetOrCreateModelAsync(make.Id, vm.ModelName);
+        var trim = await GetOrCreateTrimAsync(model.Id, vm.TrimName);
+
+        v.MakeId = make.Id;
+        v.ModelId = model.Id;
+        v.TrimId = trim?.Id;
 
         v.Year = vm.Year;
         v.Mileage = vm.Mileage;
         v.MileageUnit = vm.MileageUnit;
-
         v.EngineLiters = vm.EngineLiters;
         v.FuelType = vm.FuelType;
         v.Transmission = vm.Transmission;
         v.BodyType = vm.BodyType;
-
         v.Seats = vm.Seats;
         v.Doors = vm.Doors;
         v.Colour = vm.Colour;
-
         v.TotalOwners = vm.TotalOwners;
         v.NctExpiry = vm.NctExpiry;
-
         v.IsPublished = vm.IsPublished;
 
         v.UpdatedAtUtc = DateTime.UtcNow;
@@ -438,7 +438,9 @@ public class VehiclesController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    // DELETE (AJAX)
+    // =========================
+    // DELETE
+    // =========================
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
@@ -447,7 +449,7 @@ public class VehiclesController : Controller
 
         var v = await _db.Vehicles
             .Include(x => x.Photos)
-            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId); // ✅ owner check
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId);
 
         if (v == null) return NotFound();
 
@@ -457,23 +459,9 @@ public class VehiclesController : Controller
         return Json(new { ok = true });
     }
 
-    // --- Lookups ---
-    private async Task FillLookups(int? makeId = null, int? modelId = null, int? trimId = null)
-    {
-        var makes = await _db.Makes.AsNoTracking().OrderBy(x => x.Name).ToListAsync();
-        ViewBag.Makes = new SelectList(makes, "Id", "Name", makeId);
-
-        var modelsQuery = _db.Models.AsNoTracking().OrderBy(x => x.Name).AsQueryable();
-        if (makeId.HasValue) modelsQuery = modelsQuery.Where(x => x.MakeId == makeId.Value);
-        var models = await modelsQuery.ToListAsync();
-        ViewBag.Models = new SelectList(models, "Id", "Name", modelId);
-
-        var trimsQuery = _db.Trims.AsNoTracking().OrderBy(x => x.Name).AsQueryable();
-        if (modelId.HasValue) trimsQuery = trimsQuery.Where(x => x.ModelId == modelId.Value);
-        var trims = await trimsQuery.ToListAsync();
-        ViewBag.Trims = new SelectList(trims, "Id", "Name", trimId);
-    }
-
+    // =========================
+    // PHOTOS
+    // =========================
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UploadPhotos(int vehicleId, List<IFormFile> files)
@@ -491,7 +479,7 @@ public class VehiclesController : Controller
 
         var vehicle = await _db.Vehicles
             .Include(v => v.Photos)
-            .FirstOrDefaultAsync(v => v.Id == vehicleId && v.OwnerId == userId); // ✅ owner check
+            .FirstOrDefaultAsync(v => v.Id == vehicleId && v.OwnerId == userId);
 
         if (vehicle == null) return NotFound();
 
@@ -631,7 +619,6 @@ public class VehiclesController : Controller
     {
         var userId = CurrentUserId;
 
-        // ✅ vehicle owner check (çok önemli)
         var isOwner = await _db.Vehicles.AsNoTracking()
             .AnyAsync(v => v.Id == vehicleId && v.OwnerId == userId);
 
@@ -640,7 +627,6 @@ public class VehiclesController : Controller
         var photo = await _db.VehiclePhotos.FirstOrDefaultAsync(p => p.Id == id && p.VehicleId == vehicleId);
         if (photo == null) return NotFound();
 
-        // ✅ large + medium + thumb sil
         var largePath = Path.Combine(
             Directory.GetCurrentDirectory(),
             "wwwroot",
@@ -655,7 +641,6 @@ public class VehiclesController : Controller
         _db.VehiclePhotos.Remove(photo);
         await _db.SaveChangesAsync();
 
-        // cover silindiyse yeni cover ata
         if (wasCover)
         {
             var remaining = await _db.VehiclePhotos
@@ -690,7 +675,6 @@ public class VehiclesController : Controller
     {
         var userId = CurrentUserId;
 
-        // ✅ vehicle owner check
         var isOwner = await _db.Vehicles.AsNoTracking()
             .AnyAsync(v => v.Id == vehicleId && v.OwnerId == userId);
 
@@ -707,5 +691,50 @@ public class VehiclesController : Controller
 
         await _db.SaveChangesAsync();
         return RedirectToAction(nameof(Edit), new { id = vehicleId });
+    }
+
+    // =========================
+    // GET OR CREATE HELPERS
+    // =========================
+    private async Task<Make> GetOrCreateMakeAsync(string makeName)
+    {
+        makeName = Norm(makeName);
+
+        var make = await _db.Makes.FirstOrDefaultAsync(x => x.Name == makeName);
+        if (make != null) return make;
+
+        make = new Make { Name = makeName };
+        _db.Makes.Add(make);
+        await _db.SaveChangesAsync();
+        return make;
+    }
+
+    private async Task<VehicleModel> GetOrCreateModelAsync(int makeId, string modelName)
+    {
+        modelName = Norm(modelName);
+
+        var model = await _db.Models.FirstOrDefaultAsync(x => x.MakeId == makeId && x.Name == modelName);
+        if (model != null) return model;
+
+        model = new VehicleModel { MakeId = makeId, Name = modelName };
+        _db.Models.Add(model);
+        await _db.SaveChangesAsync();
+        return model;
+    }
+
+    private async Task<Trim?> GetOrCreateTrimAsync(int modelId, string? trimName)
+    {
+        trimName = Norm(trimName);
+
+        if (string.IsNullOrWhiteSpace(trimName))
+            return null;
+
+        var trim = await _db.Trims.FirstOrDefaultAsync(x => x.ModelId == modelId && x.Name == trimName);
+        if (trim != null) return trim;
+
+        trim = new Trim { ModelId = modelId, Name = trimName };
+        _db.Trims.Add(trim);
+        await _db.SaveChangesAsync();
+        return trim;
     }
 }

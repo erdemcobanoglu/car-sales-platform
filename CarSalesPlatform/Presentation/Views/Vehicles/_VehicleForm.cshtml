@@ -8,145 +8,94 @@
 
     <div class="card-body">
         <div class="row g-3">
+
+            <!-- ✅ Make / Model / Trim: free text -->
             <div class="col-md-4">
-                <label class="form-label">Make</label>
-                <select class="form-select" asp-for="MakeId" asp-items="ViewBag.Makes" id="makeSelect"></select>
-                <span class="text-danger" asp-validation-for="MakeId"></span>
+                <label class="form-label" asp-for="MakeName">Make</label>
+                <input class="form-control" asp-for="MakeName" placeholder="e.g. Audi" />
+                <span class="text-danger" asp-validation-for="MakeName"></span>
             </div>
 
             <div class="col-md-4">
-                <label class="form-label">Model</label>
-                <select class="form-select" asp-for="ModelId" asp-items="ViewBag.Models" id="modelSelect"></select>
-                <span class="text-danger" asp-validation-for="ModelId"></span>
+                <label class="form-label" asp-for="ModelName">Model</label>
+                <input class="form-control" asp-for="ModelName" placeholder="e.g. A4 / 3 Series" />
+                <span class="text-danger" asp-validation-for="ModelName"></span>
             </div>
 
             <div class="col-md-4">
-                <label class="form-label">Trim</label>
-                <select class="form-select" asp-for="TrimId" asp-items="ViewBag.Trims" id="trimSelect">
-                    <option value="">(None)</option>
-                </select>
-                <span class="text-danger" asp-validation-for="TrimId"></span>
+                <label class="form-label" asp-for="TrimName">Trim</label>
+                <input class="form-control" asp-for="TrimName" placeholder="(optional) e.g. S line" />
+                <span class="text-danger" asp-validation-for="TrimName"></span>
             </div>
 
             <div class="col-md-3">
-                <label class="form-label">Year</label>
+                <label class="form-label" asp-for="Year">Year</label>
                 <input class="form-control" asp-for="Year" />
                 <span class="text-danger" asp-validation-for="Year"></span>
             </div>
 
             <div class="col-md-3">
-                <label class="form-label">Mileage</label>
+                <label class="form-label" asp-for="Mileage">Mileage</label>
                 <input class="form-control" asp-for="Mileage" />
                 <span class="text-danger" asp-validation-for="Mileage"></span>
             </div>
 
             <div class="col-md-3">
-                <label class="form-label">Mileage unit</label>
+                <label class="form-label" asp-for="MileageUnit">Mileage unit</label>
                 <select class="form-select" asp-for="MileageUnit" asp-items="Html.GetEnumSelectList<MileageUnit>()"></select>
             </div>
 
             <div class="col-md-3">
-                <label class="form-label">Engine (L)</label>
+                <label class="form-label" asp-for="EngineLiters">Engine (L)</label>
                 <input class="form-control" asp-for="EngineLiters" />
                 <span class="text-danger" asp-validation-for="EngineLiters"></span>
             </div>
 
             <div class="col-md-4">
-                <label class="form-label">Fuel</label>
+                <label class="form-label" asp-for="FuelType">Fuel</label>
                 <select class="form-select" asp-for="FuelType" asp-items="Html.GetEnumSelectList<FuelType>()"></select>
             </div>
 
             <div class="col-md-4">
-                <label class="form-label">Transmission</label>
+                <label class="form-label" asp-for="Transmission">Transmission</label>
                 <select class="form-select" asp-for="Transmission" asp-items="Html.GetEnumSelectList<TransmissionType>()"></select>
             </div>
 
             <div class="col-md-4">
-                <label class="form-label">Body type</label>
+                <label class="form-label" asp-for="BodyType">Body type</label>
                 <select class="form-select" asp-for="BodyType" asp-items="Html.GetEnumSelectList<BodyType>()"></select>
             </div>
 
             <div class="col-md-3">
-                <label class="form-label">Seats</label>
+                <label class="form-label" asp-for="Seats">Seats</label>
                 <input class="form-control" asp-for="Seats" />
                 <span class="text-danger" asp-validation-for="Seats"></span>
             </div>
 
             <div class="col-md-3">
-                <label class="form-label">Doors</label>
+                <label class="form-label" asp-for="Doors">Doors</label>
                 <input class="form-control" asp-for="Doors" />
                 <span class="text-danger" asp-validation-for="Doors"></span>
             </div>
 
             <div class="col-md-3">
-                <label class="form-label">Colour</label>
+                <label class="form-label" asp-for="Colour">Colour</label>
                 <input class="form-control" asp-for="Colour" />
                 <span class="text-danger" asp-validation-for="Colour"></span>
             </div>
 
             <div class="col-md-3">
-                <label class="form-label">Owners</label>
+                <label class="form-label" asp-for="TotalOwners">Owners</label>
                 <input class="form-control" asp-for="TotalOwners" />
                 <span class="text-danger" asp-validation-for="TotalOwners"></span>
             </div>
 
             <div class="col-md-4">
-                <label class="form-label">NCT expiry</label>
+                <label class="form-label" asp-for="NctExpiry">NCT expiry</label>
                 <input class="form-control" asp-for="NctExpiry" placeholder="YYYY-MM-DD" />
             </div>
         </div>
     </div>
 </div>
 
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-
-    <script>
-        // Dependent dropdowns (Make -> Model -> Trim)
-        (function () {
-            const makeSel = document.getElementById('makeSelect');
-            const modelSel = document.getElementById('modelSelect');
-            const trimSel = document.getElementById('trimSelect');
-
-            async function loadModels(makeId) {
-                modelSel.innerHTML = '';
-                trimSel.innerHTML = '<option value="">(None)</option>';
-
-                if (!makeId) return;
-
-                const res = await fetch('@Url.Action("GetModels", "Vehicles")' + '?makeId=' + makeId);
-                const data = await res.json();
-
-                for (const item of data) {
-                    const opt = document.createElement('option');
-                    opt.value = item.id;
-                    opt.textContent = item.name;
-                    modelSel.appendChild(opt);
-                }
-            }
-
-            async function loadTrims(modelId) {
-                trimSel.innerHTML = '<option value="">(None)</option>';
-                if (!modelId) return;
-
-                const res = await fetch('@Url.Action("GetTrims", "Vehicles")' + '?modelId=' + modelId);
-                const data = await res.json();
-
-                for (const item of data) {
-                    const opt = document.createElement('option');
-                    opt.value = item.id;
-                    opt.textContent = item.name;
-                    trimSel.appendChild(opt);
-                }
-            }
-
-            makeSel?.addEventListener('change', async () => {
-                await loadModels(makeSel.value);
-            });
-
-            modelSel?.addEventListener('change', async () => {
-                await loadTrims(modelSel.value);
-            });
-        })();
-    </script>
-}
+@* ✅ Script yok: dropdown bağımlılığı kaldırıldı *@

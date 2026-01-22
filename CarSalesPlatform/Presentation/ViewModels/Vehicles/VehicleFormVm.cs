@@ -30,6 +30,11 @@ public class VehicleFormVm
     public DateOnly? NctExpiry { get; set; }
     public bool IsPublished { get; set; }
 
+    public string MakeName { get; set; } = "";
+    public string ModelName { get; set; } = "";
+    public string? TrimName { get; set; }
+
+
     public List<VehiclePhotoVm> Photos { get; set; } = new();
 
 }
