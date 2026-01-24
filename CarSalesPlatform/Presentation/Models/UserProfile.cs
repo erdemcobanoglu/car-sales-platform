@@ -7,7 +7,7 @@ public class UserProfile
     [Key]
     public string UserId { get; set; } = null!;  // PK ve aynı zamanda FK
 
-    public ApplicationUser User { get; set; } = null!;
+    public virtual ApplicationUser User { get; set; } = null!;
 
     [MaxLength(120)]
     public string? FullName { get; set; }

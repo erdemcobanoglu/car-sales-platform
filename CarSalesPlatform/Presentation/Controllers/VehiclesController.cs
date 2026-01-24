@@ -53,13 +53,10 @@ public class VehiclesController : Controller
         var sortDir = Request.Form["order[0][dir]"].FirstOrDefault();
         var sortColName = Request.Form[$"columns[{sortColIndex}][data]"].FirstOrDefault();
 
+        // ✅ Include YOK: projection zaten join yaptırır. Lazy loading burada istenmez.
         var query = _db.Vehicles
             .AsNoTracking()
             .Where(v => v.OwnerId == userId)
-            .Include(v => v.Make)
-            .Include(v => v.Model)
-            .Include(v => v.Trim)
-            .Include(v => v.Photos)
             .Select(v => new VehicleListItemVm
             {
                 Id = v.Id,
@@ -130,15 +127,20 @@ public class VehiclesController : Controller
     {
         var userId = CurrentUserId;
 
+        // ✅ Lazy loading için: AsNoTracking YOK, Include YOK
         var v = await _db.Vehicles
-            .AsNoTracking()
-            .Include(x => x.Make)
-            .Include(x => x.Model)
-            .Include(x => x.Trim)
-            .Include(x => x.Photos.OrderBy(p => p.SortOrder))
             .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId);
 
         if (v == null) return NotFound();
+
+        // ✅ Photos sıralaması garanti olsun
+        await _db.Entry(v)
+            .Collection(x => x.Photos)
+            .Query()
+            .OrderBy(p => p.SortOrder)
+            .LoadAsync();
+
+        // Make/Model/Trim gibi nav'lar View içinde erişilince lazy-load olur.
         return View(v);
     }
 
@@ -155,14 +157,18 @@ public class VehiclesController : Controller
     {
         var userId = CurrentUserId;
 
+        // ✅ Lazy loading için Include yok
         var v = await _db.Vehicles
-            .Include(x => x.Make)
-            .Include(x => x.Model)
-            .Include(x => x.Trim)
-            .Include(x => x.Photos.OrderBy(p => p.SortOrder))
             .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId);
 
         if (v == null) return NotFound();
+
+        // ✅ Photos sıralı yüklensin (VM dolduracağız)
+        await _db.Entry(v)
+            .Collection(x => x.Photos)
+            .Query()
+            .OrderBy(p => p.SortOrder)
+            .LoadAsync();
 
         var vm = new VehicleFormVm
         {
@@ -352,10 +358,8 @@ public class VehiclesController : Controller
     {
         var userId = CurrentUserId;
 
+        // ✅ Lazy loading için Include yok
         var v = await _db.Vehicles
-            .Include(x => x.Make)
-            .Include(x => x.Model)
-            .Include(x => x.Trim)
             .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId);
 
         if (v == null) return NotFound();
@@ -448,10 +452,12 @@ public class VehiclesController : Controller
         var userId = CurrentUserId;
 
         var v = await _db.Vehicles
-            .Include(x => x.Photos)
             .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == userId);
 
         if (v == null) return NotFound();
+
+        // ✅ Photos yüklü değilse explicit load
+        await _db.Entry(v).Collection(x => x.Photos).LoadAsync();
 
         _db.Vehicles.Remove(v);
         await _db.SaveChangesAsync();
@@ -478,10 +484,12 @@ public class VehiclesController : Controller
         }
 
         var vehicle = await _db.Vehicles
-            .Include(v => v.Photos)
             .FirstOrDefaultAsync(v => v.Id == vehicleId && v.OwnerId == userId);
 
         if (vehicle == null) return NotFound();
+
+        // ✅ Photos koleksiyonunu yöneteceğiz => explicit load
+        await _db.Entry(vehicle).Collection(v => v.Photos).LoadAsync();
 
         var uploadRoot = Path.Combine(
             Directory.GetCurrentDirectory(), "wwwroot", "uploads", "vehicles", vehicleId.ToString());
@@ -727,7 +735,7 @@ public class VehiclesController : Controller
     // ✅ alias kullanıldı (VehicleTrim)
     private async Task<VehicleTrim?> GetOrCreateTrimAsync(int modelId, string? trimName)
     {
-        trimName = Norm(trimName);
+        trimName = string.IsNullOrWhiteSpace(trimName) ? null : Norm(trimName);
 
         if (string.IsNullOrWhiteSpace(trimName))
             return null;

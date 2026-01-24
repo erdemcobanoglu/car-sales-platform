@@ -24,114 +24,6 @@ namespace Presentation.Controllers
             return View();
         }
 
-        #region olad v1
-        // ✅ DataTables endpoint (supports guest search q)
-        //[HttpPost]
-        //public async Task<IActionResult> Datatable(string? q)
-        //{
-        //    var draw = Request.Form["draw"].FirstOrDefault();
-        //    var start = int.TryParse(Request.Form["start"].FirstOrDefault(), out var s) ? s : 0;
-        //    var length = int.TryParse(Request.Form["length"].FirstOrDefault(), out var l) ? l : 10;
-        //    var searchValue = Request.Form["search[value]"].FirstOrDefault()?.Trim();
-
-        //    var sortColIndex = Request.Form["order[0][column]"].FirstOrDefault();
-        //    var sortDir = Request.Form["order[0][dir]"].FirstOrDefault();
-        //    var sortColName = Request.Form[$"columns[{sortColIndex}][data]"].FirstOrDefault();
-
-        //    var query = _db.Vehicles
-        //        .AsNoTracking()
-        //        .Where(v => v.IsPublished)
-        //        .Include(v => v.Make)
-        //        .Include(v => v.Model)
-        //        .Include(v => v.Trim)
-        //        .Include(v => v.Photos)
-        //        .Select(v => new VehicleListItemVm
-        //        {
-        //            Id = v.Id,
-        //            Make = v.Make.Name,
-        //            Model = v.Model.Name,
-        //            Trim = v.Trim != null ? v.Trim.Name : null,
-        //            Year = v.Year,
-        //            Mileage = v.Mileage,
-        //            MileageUnit = v.MileageUnit.ToString(),
-        //            FuelType = v.FuelType.ToString(),
-        //            Transmission = v.Transmission.ToString(),
-        //            BodyType = v.BodyType.ToString(),
-        //            CoverPhotoUrl = v.Photos
-        //                .OrderBy(p => p.SortOrder)
-        //                .Where(p => p.IsCover)
-        //                .Select(p => p.Url)
-        //                .FirstOrDefault()
-        //                ?? v.Photos.OrderBy(p => p.SortOrder).Select(p => p.Url).FirstOrDefault()
-        //        });
-
-        //    // ✅ Apply navbar search (q) first
-        //    q = q?.Trim();
-        //    if (!string.IsNullOrWhiteSpace(q))
-        //    {
-        //        var like = $"%{q}%";
-        //        query = query.Where(x =>
-        //            EF.Functions.Like(x.Make, like) ||
-        //            EF.Functions.Like(x.Model, like) ||
-        //            (x.Trim != null && EF.Functions.Like(x.Trim, like)) ||
-        //            EF.Functions.Like(x.FuelType, like) ||
-        //            EF.Functions.Like(x.Transmission, like) ||
-        //            EF.Functions.Like(x.BodyType, like) ||
-        //            EF.Functions.Like(x.Year.ToString(), like) ||
-        //            EF.Functions.Like(x.Mileage.ToString(), like)
-        //        );
-        //    }
-
-        //    var recordsTotal = await query.CountAsync();
-
-        //    // ✅ Apply DataTables search as additional filter
-        //    if (!string.IsNullOrWhiteSpace(searchValue))
-        //    {
-        //        var sLike = $"%{searchValue}%";
-        //        query = query.Where(x =>
-        //            EF.Functions.Like(x.Make, sLike) ||
-        //            EF.Functions.Like(x.Model, sLike) ||
-        //            (x.Trim != null && EF.Functions.Like(x.Trim, sLike)) ||
-        //            EF.Functions.Like(x.FuelType, sLike) ||
-        //            EF.Functions.Like(x.Transmission, sLike) ||
-        //            EF.Functions.Like(x.BodyType, sLike) ||
-        //            EF.Functions.Like(x.Year.ToString(), sLike) ||
-        //            EF.Functions.Like(x.Mileage.ToString(), sLike)
-        //        );
-        //    }
-
-        //    var recordsFiltered = await query.CountAsync();
-
-        //    query = (sortColName, sortDir?.ToLowerInvariant()) switch
-        //    {
-        //        ("make", "desc") => query.OrderByDescending(x => x.Make),
-        //        ("make", _) => query.OrderBy(x => x.Make),
-
-        //        ("model", "desc") => query.OrderByDescending(x => x.Model),
-        //        ("model", _) => query.OrderBy(x => x.Model),
-
-        //        ("year", "desc") => query.OrderByDescending(x => x.Year),
-        //        ("year", _) => query.OrderBy(x => x.Year),
-
-        //        ("mileage", "desc") => query.OrderByDescending(x => x.Mileage),
-        //        ("mileage", _) => query.OrderBy(x => x.Mileage),
-
-        //        _ => query.OrderByDescending(x => x.Id)
-        //    };
-
-        //    var data = await query.Skip(start).Take(length).ToListAsync();
-
-        //    foreach (var item in data)
-        //    {
-        //        if (!string.IsNullOrWhiteSpace(item.CoverPhotoUrl))
-        //            item.CoverPhotoUrl = item.CoverPhotoUrl.Replace("_large.jpg", "_medium.jpg");
-        //    }
-
-        //    return Json(new { draw, recordsTotal, recordsFiltered, data });
-        //}
-
-        #endregion
-
         [HttpPost]
         public async Task<IActionResult> Datatable(string? q)
         {
@@ -145,14 +37,10 @@ namespace Presentation.Controllers
             var sortDir = Request.Form["order[0][dir]"].FirstOrDefault();
             var sortColName = Request.Form[$"columns[{sortColIndex}][data]"].FirstOrDefault();
 
-            // ✅ Base query (published only)
+            // ✅ Base query (published only) — Include YOK (projection zaten join yaptırır)
             var baseQuery = _db.Vehicles
                 .AsNoTracking()
                 .Where(v => v.IsPublished)
-                .Include(v => v.Make)
-                .Include(v => v.Model)
-                .Include(v => v.Trim)
-                .Include(v => v.Photos)
                 .AsQueryable();
 
             // ✅ recordsTotal BEFORE any filtering
@@ -259,20 +147,24 @@ namespace Presentation.Controllers
             }
         }
 
-
         [HttpGet]
         public async Task<IActionResult> Details(int id)
         {
+            // ✅ Lazy loading için: AsNoTracking YOK, Include YOK
             var v = await _db.Vehicles
-                .AsNoTracking()
-                .Where(x => x.IsPublished)
-                .Include(x => x.Make)
-                .Include(x => x.Model)
-                .Include(x => x.Trim)
-                .Include(x => x.Photos.OrderBy(p => p.SortOrder))
-                .FirstOrDefaultAsync(x => x.Id == id);
+                .Where(x => x.IsPublished && x.Id == id)
+                .FirstOrDefaultAsync();
 
             if (v == null) return NotFound();
+
+            // ✅ Photos sıralaması garanti olsun diye explicit load + order
+            await _db.Entry(v)
+                .Collection(x => x.Photos)
+                .Query()
+                .OrderBy(p => p.SortOrder)
+                .LoadAsync();
+
+            // Make/Model/Trim/Owner vs. View içinde erişilince lazy-load olur (virtual nav + proxies)
             return View(v);
         }
     }

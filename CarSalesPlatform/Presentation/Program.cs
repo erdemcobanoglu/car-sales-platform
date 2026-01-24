@@ -1,5 +1,4 @@
-﻿ 
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Presentation.Data;
 using Presentation.Data.Seed;
@@ -10,9 +9,12 @@ var builder = WebApplication.CreateBuilder(args);
 // MVC
 builder.Services.AddControllersWithViews();
 
-// DbContext (SQL Server)
+// DbContext (SQL Server) + ✅ Lazy Loading Proxies
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
+    options
+        .UseSqlServer(builder.Configuration.GetConnectionString("Default"))
+        .UseLazyLoadingProxies()
+);
 
 // ✅ Identity (MVC AccountController kullanıyorsun)
 builder.Services
@@ -66,4 +68,3 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
- 

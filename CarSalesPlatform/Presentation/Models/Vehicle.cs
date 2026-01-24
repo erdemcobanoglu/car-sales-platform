@@ -8,13 +8,13 @@ public class Vehicle
     public int Id { get; set; }
 
     public int MakeId { get; set; }
-    public Make Make { get; set; } = null!;
+    public virtual Make Make { get; set; } = null!;
 
     public int ModelId { get; set; }
-    public VehicleModel Model { get; set; } = null!;
+    public virtual VehicleModel Model { get; set; } = null!;
 
     public int? TrimId { get; set; }
-    public Trim? Trim { get; set; }
+    public virtual Trim? Trim { get; set; }
 
     public int Year { get; set; }
     public int Mileage { get; set; }
@@ -29,7 +29,7 @@ public class Vehicle
     public int Doors { get; set; }
 
     [MaxLength(60)]
-    public string Colour { get; set; } = "";
+    public string Colour { get; set; } = string.Empty;
 
     public int TotalOwners { get; set; }
     public DateOnly? NctExpiry { get; set; }
@@ -40,10 +40,9 @@ public class Vehicle
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
 
-    public string OwnerId { get; set; }
-    public ApplicationUser Owner { get; set; }
+    // Identity user FK
+    public string OwnerId { get; set; } = null!;
+    public virtual ApplicationUser Owner { get; set; } = null!;
 
-
-
-    public ICollection<VehiclePhoto> Photos { get; set; } = new List<VehiclePhoto>();
+    public virtual ICollection<VehiclePhoto> Photos { get; set; } = new List<VehiclePhoto>();
 }

@@ -7,7 +7,7 @@ public class VehiclePhoto
     public int Id { get; set; }
 
     public int VehicleId { get; set; }
-    public Vehicle Vehicle { get; set; } = null!;
+    public virtual Vehicle Vehicle { get; set; } = null!;
 
     [MaxLength(500)]
     public string Url { get; set; } = "";   // Foto URL / path (wwwroot/uploads/..)

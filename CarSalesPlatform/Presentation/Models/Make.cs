@@ -9,6 +9,6 @@ public class Make
     [MaxLength(80)]
     public string Name { get; set; } = "";
 
-    public ICollection<VehicleModel> Models { get; set; } = new List<VehicleModel>();
-    public ICollection<Vehicle> Vehicles { get; set; } = new List<Vehicle>();
+    public virtual ICollection<VehicleModel> Models { get; set; } = new List<VehicleModel>();
+    public virtual ICollection<Vehicle> Vehicles { get; set; } = new List<Vehicle>();
 }

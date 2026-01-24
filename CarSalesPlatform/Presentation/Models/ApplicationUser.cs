@@ -5,5 +5,5 @@ namespace Presentation.Models;
 public class ApplicationUser : IdentityUser
 {
     // İleride ekstra alanlar eklenebilir
-    public UserProfile? Profile { get; set; }
+    public virtual UserProfile? Profile { get; set; }
 }
