@@ -115,6 +115,9 @@
                     <dd class="col-6 text-end fw-semibold">
                         @(Model.NctExpiry.HasValue ? Model.NctExpiry.Value.ToString("yyyy-MM-dd") : "-")
                     </dd>
+
+                    <dt class="col-6 text-muted">Contact </dt>
+                    <dd class="col-6 text-end fw-semibold">@Model.Owner?.Profile?.Phone</dd>
                 </dl>
             </div>
         </div>
