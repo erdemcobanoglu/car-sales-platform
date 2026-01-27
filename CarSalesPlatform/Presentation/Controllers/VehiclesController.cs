@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Presentation.Data;
 using Presentation.Models;
+using Presentation.Models.Enums;
 using Presentation.ViewModels.Vehicles;
 
 // ✅ ImageSharp
@@ -39,6 +40,7 @@ public class VehiclesController : Controller
     public IActionResult Index() => View();
 
     // DataTables server-side endpoint
+    // DataTables server-side endpoint
     [HttpPost]
     public async Task<IActionResult> Datatable()
     {
@@ -53,71 +55,99 @@ public class VehiclesController : Controller
         var sortDir = Request.Form["order[0][dir]"].FirstOrDefault();
         var sortColName = Request.Form[$"columns[{sortColIndex}][data]"].FirstOrDefault();
 
-        // ✅ Include YOK: projection zaten join yaptırır. Lazy loading burada istenmez.
-        var query = _db.Vehicles
+        // 1) Entity query
+        var baseQuery = _db.Vehicles
             .AsNoTracking()
-            .Where(v => v.OwnerId == userId)
-            .Select(v => new VehicleListItemVm
-            {
-                Id = v.Id,
-                Make = v.Make.Name,
-                Model = v.Model.Name,
-                Trim = v.Trim != null ? v.Trim.Name : null,
-                Year = v.Year,
-                Mileage = v.Mileage,
-                MileageUnit = v.MileageUnit.ToString(),
-                FuelType = v.FuelType.ToString(),
-                Transmission = v.Transmission.ToString(),
-                BodyType = v.BodyType.ToString(),
-                IsPublished = v.IsPublished,
-                CoverPhotoUrl = v.Photos
-                    .OrderBy(p => p.SortOrder)
-                    .Where(p => p.IsCover)
-                    .Select(p => p.Url)
-                    .FirstOrDefault()
-                    ?? v.Photos.OrderBy(p => p.SortOrder).Select(p => p.Url).FirstOrDefault()
-            });
+            .Where(v => v.OwnerId == userId);
 
-        var recordsTotal = await query.CountAsync();
+        var recordsTotal = await baseQuery.CountAsync();
 
+        // 2) Search (entity tarafında)
         if (!string.IsNullOrWhiteSpace(searchValue))
         {
-            var sLike = $"%{searchValue}%";
-            query = query.Where(x =>
-                EF.Functions.Like(x.Make, sLike) ||
-                EF.Functions.Like(x.Model, sLike) ||
-                (x.Trim != null && EF.Functions.Like(x.Trim, sLike)) ||
-                EF.Functions.Like(x.FuelType, sLike) ||
-                EF.Functions.Like(x.Transmission, sLike) ||
-                EF.Functions.Like(x.BodyType, sLike) ||
-                EF.Functions.Like(x.Year.ToString(), sLike) ||
-                EF.Functions.Like(x.Mileage.ToString(), sLike)
+            var like = $"%{searchValue}%";
+
+            // Transmission enum'u sende belli: Models.Enums.TransmissionType
+            var hasTrans = Enum.TryParse<Models.Enums.TransmissionType>(searchValue, true, out var transEnum);
+
+            // FuelType ve BodyType'ın enum tipi projede farklı namespace olabilir.
+            // Bu yüzden compile kırmadan "runtime type" ile parse ediyoruz.
+            var fuelEnumType = baseQuery.Select(v => v.FuelType).FirstOrDefault().GetType();
+            var bodyEnumType = baseQuery.Select(v => v.BodyType).FirstOrDefault().GetType();
+
+            object? fuelParsed = null;
+            object? bodyParsed = null;
+
+            var hasFuel = Enum.TryParse(fuelEnumType, searchValue, true, out fuelParsed);
+            var hasBody = Enum.TryParse(bodyEnumType, searchValue, true, out bodyParsed);
+
+            baseQuery = baseQuery.Where(v =>
+                // text alanlar
+                EF.Functions.Like(v.Make.Name, like) ||
+                EF.Functions.Like(v.Model.Name, like) ||
+                (v.Trim != null && EF.Functions.Like(v.Trim.Name, like)) ||
+
+                // sayısallar
+                EF.Functions.Like(v.Year.ToString(), like) ||
+                EF.Functions.Like(v.Mileage.ToString(), like) ||
+
+                // enumlar (LIKE yok): parse edip == ile filtrele
+                (hasTrans && v.Transmission == transEnum) ||
+                (hasFuel && v.FuelType.Equals(fuelParsed)) ||
+                (hasBody && v.BodyType.Equals(bodyParsed))
             );
         }
 
-        var recordsFiltered = await query.CountAsync();
+        var recordsFiltered = await baseQuery.CountAsync();
 
-        query = (sortColName, sortDir?.ToLowerInvariant()) switch
+        // 3) Projection
+        var query = baseQuery.Select(v => new VehicleListItemVm
         {
-            ("make", "desc") => query.OrderByDescending(x => x.Make),
-            ("make", _) => query.OrderBy(x => x.Make),
+            Id = v.Id,
+            Make = v.Make.Name,
+            Model = v.Model.Name,
+            Trim = v.Trim != null ? v.Trim.Name : null,
+            Year = v.Year,
+            Mileage = v.Mileage,
+            MileageUnit = v.MileageUnit.ToString(),
+            FuelType = v.FuelType.ToString(),
+            Transmission = v.Transmission.ToString(),
+            BodyType = v.BodyType.ToString(),
+            IsPublished = v.IsPublished,
+            CoverPhotoUrl = v.Photos
+                .OrderBy(p => p.SortOrder)
+                .Where(p => p.IsCover)
+                .Select(p => p.Url)
+                .FirstOrDefault()
+                ?? v.Photos.OrderBy(p => p.SortOrder).Select(p => p.Url).FirstOrDefault()
+        });
 
-            ("model", "desc") => query.OrderByDescending(x => x.Model),
-            ("model", _) => query.OrderBy(x => x.Model),
+        // 4) Sorting
+        var dirDesc = (sortDir ?? "").Equals("desc", StringComparison.OrdinalIgnoreCase);
 
-            ("year", "desc") => query.OrderByDescending(x => x.Year),
-            ("year", _) => query.OrderBy(x => x.Year),
+        query = (sortColName?.ToLowerInvariant(), dirDesc) switch
+        {
+            ("make", true) => query.OrderByDescending(x => x.Make),
+            ("make", false) => query.OrderBy(x => x.Make),
 
-            ("mileage", "desc") => query.OrderByDescending(x => x.Mileage),
-            ("mileage", _) => query.OrderBy(x => x.Mileage),
+            ("model", true) => query.OrderByDescending(x => x.Model),
+            ("model", false) => query.OrderBy(x => x.Model),
+
+            ("year", true) => query.OrderByDescending(x => x.Year),
+            ("year", false) => query.OrderBy(x => x.Year),
+
+            ("mileage", true) => query.OrderByDescending(x => x.Mileage),
+            ("mileage", false) => query.OrderBy(x => x.Mileage),
 
             _ => query.OrderByDescending(x => x.Id)
         };
 
+        // 5) Paging
         var data = await query.Skip(start).Take(length).ToListAsync();
 
         return Json(new { draw, recordsTotal, recordsFiltered, data });
     }
+
 
     // =========================
     // DETAILS

@@ -3,29 +3,96 @@
 }
 
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css" />
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css" />
 
-<h2>Vehicles</h2>
+<style>
+    .page-head {
+        padding: 8px 0;
+    }
 
-<button class="btn btn-primary" id="btnCreate">Create</button>
+    .vehicle-table-wrap {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 10px;
+        box-shadow: 0 6px 20px rgba(0,0,0,.04);
+    }
 
-<table id="vehiclesTable" class="display" style="width:100%; margin-top:12px;">
-    <thead>
-        <tr>
-            <th>Make</th>
-            <th>Model</th>
-            <th>Trim</th>
-            <th>Year</th>
-            <th>Mileage</th>
-            <th>Fuel</th>
-            <th>Transmission</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-</table>
+    table.dataTable thead th {
+        font-weight: 700;
+        color: #212529;
+        border-bottom: 1px solid #e9ecef !important;
+    }
 
-<form id="antiForgeryForm" method="post">
+    table.dataTable tbody td {
+        vertical-align: middle;
+        padding: 12px 10px;
+    }
+
+    table.dataTable tbody tr:hover {
+        background: #f8f9fa;
+    }
+
+    .btn-corp {
+        border-radius: 10px;
+        padding: .45rem .75rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .action-btn {
+        border-radius: 10px;
+        padding: .32rem .55rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .table-responsive.vehicle-table-wrap {
+        overflow-x: auto;
+    }
+     
+    @@media (max-width:576px) {
+        .vehicle-table-wrap {
+            padding: 8px;
+        }
+
+        .btn-corp {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="d-flex align-items-start align-items-md-center justify-content-between mb-3 page-head gap-2 flex-column flex-md-row">
+    <div>
+        <h2 class="mb-0">Vehicles</h2>
+        <div class="text-muted">Manage vehicle inventory</div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-corp" id="btnCreate" type="button">Create</button>
+    </div>
+</div>
+
+<form id="antiForgeryForm" method="post" class="d-none">
     @Html.AntiForgeryToken()
 </form>
+
+<div class="table-responsive vehicle-table-wrap">
+    <table id="vehiclesTable" class="display nowrap w-100" style="margin-top:12px;">
+        <thead>
+            <tr>
+                <th>Make</th>
+                <th>Model</th>
+                <th>Trim</th>
+                <th>Year</th>
+                <th>Mileage</th>
+                <th>Fuel</th>
+                <th>Transmission</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+    </table>
+</div>
 
 <!-- Bootstrap Modal -->
 <div class="modal fade" id="vehicleModal" tabindex="-1" aria-hidden="true">
@@ -36,17 +103,51 @@
 
 @section Scripts {
     <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
 
     <script>
-        const antiForgeryToken = $('#antiForgeryForm input[name="__RequestVerificationToken"]').val();
+        const antiForgeryToken = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]').value;
 
         const table = $('#vehiclesTable').DataTable({
             serverSide: true,
             processing: true,
+            responsive: true,
+            scrollX: true,
+            autoWidth: false,
+
+            // ✅ DataTables kendi search input'u (istersen aç)
+            // searching: true,
+            // dom: 'frtip',
+
             ajax: {
                 url: '@Url.Action("Datatable", "Vehicles")',
-                type: 'POST'
+                type: 'POST',
+                data: function (d) {
+                    // ✅ Token'ı her isteğe ekle
+                    d.__RequestVerificationToken = antiForgeryToken;
+                },
+                error: function (xhr) {
+                    // ✅ Gerçek hatayı burada görürsün
+                    console.error("Datatable Ajax Error:", {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        responseText: xhr.responseText
+                    });
+                }
             },
+
+            columnDefs: [
+                { targets: 7, orderable: false, searchable: false, width: "190px" },
+                { responsivePriority: 1, targets: 0 },
+                { responsivePriority: 2, targets: 1 },
+                { responsivePriority: 3, targets: 3 },
+                { responsivePriority: 4, targets: 7 },
+                { responsivePriority: 100, targets: 2 },
+                { responsivePriority: 101, targets: 4 },
+                { responsivePriority: 102, targets: 5 },
+                { responsivePriority: 103, targets: 6 }
+            ],
+
             columns: [
                 { data: 'make' },
                 { data: 'model' },
@@ -57,77 +158,28 @@
                 { data: 'transmission' },
                 {
                     data: 'id',
-                    orderable: false,
-                    searchable: false,
                     render: function (id) {
                         const detailsUrl = '@Url.Action("Details", "Vehicles")/' + id;
                         const editUrl = '@Url.Action("Edit", "Vehicles")/' + id;
 
                         return `
-                <a href="${detailsUrl}">Details</a> |
-                <a href="${editUrl}">Edit</a> |
-                <a href="#" onclick="deleteVehicle(${id}); return false;">Delete</a>
-            `;
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <a class="btn btn-sm btn-outline-primary action-btn" href="${detailsUrl}">Details</a>
+                                        <a class="btn btn-sm btn-outline-secondary action-btn" href="${editUrl}">Edit</a>
+                                        <button class="btn btn-sm btn-outline-danger action-btn" type="button" onclick="deleteVehicle(${id})">Delete</button>
+                                    </div>
+                                `;
                     }
-
                 }
-
             ]
         });
 
-        // Bootstrap modal instance (Bootstrap 5) - layout'ta yüklü olmalı
-        const modalEl = document.getElementById('vehicleModal');
-        const bsModal = new bootstrap.Modal(modalEl);
-
-        async function openCreate() {
-            const html = await fetch('@Url.Action("CreateModal", "Vehicles")').then(r => r.text());
-            $('#vehicleModalContent').html(html);
-            wireModalForm();
-            bsModal.show();
-        }
-
-        async function openEdit(id) {
-            const html = await fetch('@Url.Action("EditModal", "Vehicles")' + '?id=' + id).then(r => r.text());
-            $('#vehicleModalContent').html(html);
-            wireModalForm();
-            bsModal.show();
-        }
+        // ✅ Eğer "arama kutusu" istiyorsan (DataTables default search)
+        // Yukarıda searching:true ve dom:'frtip' açman yeterli.
 
         $('#btnCreate').on('click', function () {
             window.location.href = '@Url.Action("Create", "Vehicles")';
         });
-
-        function wireModalForm() {
-            const $form = $('#vehicleModalForm');
-            if ($form.length === 0) return;
-
-            $form.off('submit').on('submit', function (e) {
-                e.preventDefault();
-
-                $.ajax({
-                    url: '@Url.Action("SaveModal", "Vehicles")',
-                    type: 'POST',
-                    data: $form.serialize(),
-                    success: function (res) {
-                        // başarılıysa JSON { ok: true }
-                        if (res && res.ok) {
-                            bsModal.hide();
-                            table.ajax.reload(null, false);
-                            return;
-                        }
-
-                        // validation hatası: partial HTML döner
-                        $('#vehicleModalContent').html(res);
-                        wireModalForm();
-                    },
-                    error: function () {
-                        const el = document.getElementById('modalServerError');
-                        if (el) el.innerText = 'Save failed.';
-                        else alert('Save failed.');
-                    }
-                });
-            });
-        }
 
         function deleteVehicle(id) {
             if (!confirm('Delete this vehicle?')) return;
@@ -144,8 +196,7 @@
             });
         }
 
-        // expose for inline onclick
-        window.openEdit = openEdit;
         window.deleteVehicle = deleteVehicle;
     </script>
 }
+

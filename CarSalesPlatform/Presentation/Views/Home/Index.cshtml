@@ -4,8 +4,84 @@
 }
 
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css" />
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css" />
 
-<div class="d-flex align-items-center justify-content-between mb-3">
+<style>
+    /* Kurumsal, temiz görünüm */
+    .vehicle-table-wrap {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 10px;
+        box-shadow: 0 6px 20px rgba(0,0,0,.04);
+    }
+
+    /* Başlık alanı */
+    .page-head {
+        padding: 8px 0;
+    }
+
+    /* DataTables satır/padding iyileştirme */
+    table.dataTable tbody td {
+        vertical-align: middle;
+        padding: 12px 10px;
+    }
+
+    table.dataTable thead th {
+        font-weight: 700;
+        color: #212529;
+        border-bottom: 1px solid #e9ecef !important;
+    }
+
+    table.dataTable tbody tr:hover {
+        background: #f8f9fa;
+    }
+
+    /* Foto thumbnail kurumsal */
+    .vehicle-thumb {
+        width: 112px;
+        height: 72px;
+        object-fit: cover;
+        border-radius: 10px;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 6px 16px rgba(0,0,0,.06);
+        transition: transform .15s ease, box-shadow .15s ease;
+        background: #f8f9fa;
+        display: block;
+    }
+
+    .vehicle-thumb:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(0,0,0,.10);
+    }
+
+    /* Details butonu daha kurumsal */
+    .btn-corp {
+        border-radius: 10px;
+        padding: .35rem .6rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    /* Responsive wrapper: mobilde kaydırma */
+    .table-responsive.vehicle-table-wrap {
+        overflow-x: auto;
+    }
+
+    /* Mobilde thumb biraz küçülsün */
+    @@media (max-width: 576px) {
+        .vehicle-thumb {
+            width: 96px;
+            height: 64px;
+            border-radius: 10px;
+        }
+        .vehicle-table-wrap {
+            padding: 8px;
+        }
+    }
+</style>
+
+<div class="d-flex align-items-center justify-content-between mb-3 page-head">
     <div>
         <h2 class="mb-0">Vehicles</h2>
         @if (!string.IsNullOrWhiteSpace(q))
@@ -23,24 +99,27 @@
     @Html.AntiForgeryToken()
 </form>
 
-<table id="vehiclesTable" class="display" style="width:100%; margin-top:12px;">
-    <thead>
-        <tr>
-            <th>Photo</th>
-            <th>Make</th>
-            <th>Model</th>
-            <th>Trim</th>
-            <th>Year</th>
-            <th>Mileage</th>
-            <th>Fuel</th>
-            <th>Transmission</th>
-            <th>Details</th>
-        </tr>
-    </thead>
-</table>
+<div class="table-responsive vehicle-table-wrap">
+    <table id="vehiclesTable" class="display nowrap w-100" style="margin-top:12px;">
+        <thead>
+            <tr>
+                <th>Photo</th>
+                <th>Make</th>
+                <th>Model</th>
+                <th>Trim</th>
+                <th>Year</th>
+                <th>Mileage</th>
+                <th>Fuel</th>
+                <th>Transmission</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+    </table>
+</div>
 
 @section Scripts {
     <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
 
     <script>
         const datatableBaseUrl = '@Url.Action("Datatable", "Home")';
@@ -57,8 +136,18 @@
             serverSide: true,
             processing: true,
 
-            searching: false, // ✅ Search box gitti
-            dom: 'rtip',      // ✅ Buttons yok, filter yok => Create gibi şeyler çıkmaz
+            searching: false,
+            dom: 'rtip',
+
+            responsive: {
+                details: {
+                    type: 'column',
+                    target: 'tr'
+                }
+            },
+
+            scrollX: true,
+            autoWidth: false,
 
             ajax: {
                 url: datatableUrl,
@@ -72,27 +161,38 @@
             lengthMenu: [10, 25, 50],
 
             columnDefs: [
-                { targets: 0, width: "140px" },
-                { targets: 8, width: "90px" }
+                { targets: 0, width: "140px", orderable: false, searchable: false },
+                { targets: 8, width: "110px", orderable: false, searchable: false },
+
+                // Mobil öncelik (küçük ekranda düşük öncelikler saklanır)
+                { responsivePriority: 1, targets: 0 },  // Photo
+                { responsivePriority: 2, targets: 1 },  // Make
+                { responsivePriority: 3, targets: 2 },  // Model
+                { responsivePriority: 4, targets: 8 },  // Details
+                { responsivePriority: 100, targets: 3 }, // Trim
+                { responsivePriority: 101, targets: 5 }, // Mileage
+                { responsivePriority: 102, targets: 6 }, // Fuel
+                { responsivePriority: 103, targets: 7 }  // Transmission
             ],
 
             columns: [
                 {
                     data: 'coverPhotoUrl',
-                    orderable: false,
-                    searchable: false,
                     render: function (url, type, row) {
-                        const img = url ? url : 'https://via.placeholder.com/120x80?text=No+Photo';
+                        // Kurumsal placeholder
+                        const img = url ? url : 'https://placehold.co/224x144/png?text=No+Photo';
                         const detailsUrl = `${detailsBaseUrl}/${row.id}`;
 
                         return `
-                                    <a href="${detailsUrl}" title="View details" style="display:inline-block;">
-                                        <img src="${img}"
-                                             alt="vehicle"
-                                             loading="lazy"
-                                             style="width:120px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #ddd;" />
-                                    </a>
-                                `;
+                            <a href="${detailsUrl}" class="d-inline-block" title="View details">
+                                <img
+                                    src="${img}"
+                                    alt="vehicle"
+                                    loading="lazy"
+                                    class="vehicle-thumb"
+                                />
+                            </a>
+                        `;
                     }
                 },
                 { data: 'make' },
@@ -104,11 +204,9 @@
                 { data: 'transmission' },
                 {
                     data: 'id',
-                    orderable: false,
-                    searchable: false,
                     render: function (id) {
                         const detailsUrl = `${detailsBaseUrl}/${id}`;
-                        return `<a class="btn btn-sm btn-outline-primary" href="${detailsUrl}">Details</a>`;
+                        return `<a class="btn btn-sm btn-outline-primary btn-corp" href="${detailsUrl}">Details</a>`;
                     }
                 }
             ]
