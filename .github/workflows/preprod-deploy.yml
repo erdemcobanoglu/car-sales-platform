@@ -1,0 +1,44 @@
+name: Preprod Deploy
+
+on:
+  push:
+    branches: [ "master" ]   # branch'in main ise "main" yap
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Publish
+        run: dotnet publish CarSalesPlatform/Presentation/Presentation.csproj -c Release -o publish
+
+      - name: Copy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "publish/*"
+          target: "/var/www/preprod"
+          strip_components: 1
+
+      - name: Restart service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            sudo systemctl restart preprod
+            sudo systemctl status preprod --no-pager
