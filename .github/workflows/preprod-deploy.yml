@@ -17,11 +17,13 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      # ✅ FIX: restore'a csproj yolunu ver
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore ./CarSalesPlatform/Presentation/Presentation.csproj
 
+      # ✅ (zaten doğruydu, sadece ./ ekledim)
       - name: Publish
-        run: dotnet publish CarSalesPlatform/Presentation/Presentation.csproj -c Release -o publish
+        run: dotnet publish ./CarSalesPlatform/Presentation/Presentation.csproj -c Release -o publish
 
       - name: Copy to server
         uses: appleboy/scp-action@v0.1.7
