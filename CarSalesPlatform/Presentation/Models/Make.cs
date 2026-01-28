@@ -12,3 +12,5 @@ public class Make
     public virtual ICollection<VehicleModel> Models { get; set; } = new List<VehicleModel>();
     public virtual ICollection<Vehicle> Vehicles { get; set; } = new List<Vehicle>();
 }
+
+// test
