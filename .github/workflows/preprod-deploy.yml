@@ -17,11 +17,9 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      # ✅ FIX: restore'a csproj yolunu ver
       - name: Restore
         run: dotnet restore ./CarSalesPlatform/Presentation/Presentation.csproj
 
-      # ✅ (zaten doğruydu, sadece ./ ekledim)
       - name: Publish
         run: dotnet publish ./CarSalesPlatform/Presentation/Presentation.csproj -c Release -o publish
 
@@ -31,6 +29,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
           source: "publish/*"
           target: "/var/www/preprod"
           strip_components: 1
@@ -41,6 +40,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             sudo systemctl restart preprod
             sudo systemctl status preprod --no-pager
