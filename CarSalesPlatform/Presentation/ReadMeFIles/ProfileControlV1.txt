@@ -5,7 +5,7 @@
 
 Ayrıca Profile’a tıklayınca **kullanıcının profil sayfasına** gider.
 
----
+
 
 ## 1) `_Layout.cshtml` içine sağ üst profile alanı ekle
 
