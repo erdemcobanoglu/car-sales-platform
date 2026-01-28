@@ -421,3 +421,4 @@ FodyWeavers.xsd
 
 appsettings.json
 appsettings.*.json
+/CarSalesPlatform/Presentation/appsettings.Development.json
