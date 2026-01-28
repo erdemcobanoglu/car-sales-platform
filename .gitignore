@@ -418,3 +418,6 @@ FodyWeavers.xsd
 *.msp
 /CarSalesPlatform/Presentation/wwwroot/uploads/vehicles/21
 /CarSalesPlatform/Presentation/wwwroot/uploads/vehicles
+
+appsettings.json
+appsettings.*.json

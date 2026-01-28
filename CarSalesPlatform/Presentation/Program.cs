@@ -58,13 +58,18 @@ app.MapControllerRoute(
 
 // ===== MIGRATION + SEED =====
 // Not: Prod'da seed istemiyorsan burayı env'e bağla.
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+// ===== MIGRATION + SEED (DEV only) =====
+using var scope = app.Services.CreateScope();
+var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-    db.Database.Migrate();
+db.Database.Migrate();
+
+if (app.Environment.IsDevelopment())
+{
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     await DbSeeder.SeedAsync(db, userManager);
 }
+
+
 
 app.Run();
