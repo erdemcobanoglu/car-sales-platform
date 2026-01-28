@@ -1,5 +1,5 @@
 ﻿Aşağıdaki şekilde yaparsan sağ üstte “Profile / Login / Register” alanı görünür:
-
+  --
 * **Login olmuşsa:** sağ üstte kullanıcı adı + “Profile” + “Logout”
 * **Login değilse:** “Login” + “Register”
 
