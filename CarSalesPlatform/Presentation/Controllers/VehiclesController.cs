@@ -113,6 +113,7 @@ public class VehiclesController : Controller
             FuelType = v.FuelType.ToString(),
             Transmission = v.Transmission.ToString(),
             BodyType = v.BodyType.ToString(),
+            Price = v.Price,
             IsPublished = v.IsPublished,
             CoverPhotoUrl = v.Photos
                 .OrderBy(p => p.SortOrder)
@@ -221,6 +222,7 @@ public class VehiclesController : Controller
             Colour = v.Colour,
             TotalOwners = v.TotalOwners,
             NctExpiry = v.NctExpiry,
+            Price = v.Price,
             IsPublished = v.IsPublished,
 
             Photos = v.Photos
@@ -284,6 +286,7 @@ public class VehiclesController : Controller
                 Colour = vm.Colour,
                 TotalOwners = vm.TotalOwners,
                 NctExpiry = vm.NctExpiry,
+                Price = vm.Price, 
                 IsPublished = vm.IsPublished
             };
 
@@ -316,6 +319,7 @@ public class VehiclesController : Controller
         v.TotalOwners = vm.TotalOwners;
         v.NctExpiry = vm.NctExpiry;
 
+        v.Price = vm.Price;
         v.IsPublished = vm.IsPublished;
         v.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -374,6 +378,7 @@ public class VehiclesController : Controller
             Colour = vm.Colour,
             TotalOwners = vm.TotalOwners,
             NctExpiry = vm.NctExpiry,
+            Price = vm.Price,
             IsPublished = vm.IsPublished
         };
 
@@ -414,6 +419,7 @@ public class VehiclesController : Controller
             Colour = v.Colour,
             TotalOwners = v.TotalOwners,
             NctExpiry = v.NctExpiry,
+            Price = v.Price,
             IsPublished = v.IsPublished
         };
 
@@ -464,6 +470,7 @@ public class VehiclesController : Controller
         v.Colour = vm.Colour;
         v.TotalOwners = vm.TotalOwners;
         v.NctExpiry = vm.NctExpiry;
+        v.Price = vm.Price;
         v.IsPublished = vm.IsPublished;
 
         v.UpdatedAtUtc = DateTime.UtcNow;

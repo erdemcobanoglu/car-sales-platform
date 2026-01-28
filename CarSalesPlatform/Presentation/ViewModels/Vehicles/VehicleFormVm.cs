@@ -32,7 +32,7 @@ public class VehicleFormVm
     public MileageUnit MileageUnit { get; set; } = MileageUnit.Miles;
 
     [Range(0.5, 10.0)]
-    public double EngineLiters { get; set; }
+    public decimal EngineLiters { get; set; }
 
     public FuelType FuelType { get; set; }
     public TransmissionType Transmission { get; set; }
@@ -51,6 +51,9 @@ public class VehicleFormVm
     public int TotalOwners { get; set; }
 
     public DateOnly? NctExpiry { get; set; }
+
+    [Range(0, 999999999)]
+    public decimal Price { get; set; }
 
     public bool IsPublished { get; set; }
 

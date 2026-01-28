@@ -94,6 +94,17 @@
                 <label class="form-label" asp-for="NctExpiry">NCT expiry</label>
                 <input class="form-control" asp-for="NctExpiry" placeholder="YYYY-MM-DD" />
             </div>
+
+            <div class="col-md-4">
+                <label asp-for="Price" class="form-label"></label>
+                <input asp-for="Price"
+                       class="form-control"
+                       type="number"
+                       step="1"
+                       min="0" />
+                <span asp-validation-for="Price" class="text-danger"></span>
+            </div>
+
         </div>
     </div>
 </div>

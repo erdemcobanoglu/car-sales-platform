@@ -86,23 +86,23 @@ public static class DbSeeder
         await db.SaveChangesAsync();
 
         // ===== TEST VEHICLES =====
-        var vehiclesToCreate = new List<(Make make, VehicleModel model, Trim? trim, int year, int mileage, double engine, FuelType fuel, TransmissionType trans, BodyType body, int seats, int doors, string colour, int owners, DateOnly? nct)>
+        var vehiclesToCreate = new List<(Make make, VehicleModel model, Trim? trim, int year, int mileage, decimal engine, FuelType fuel, TransmissionType trans, BodyType body, int seats, int doors, string colour, int owners, DateOnly? nct)>
         {
-            (ford, smax, zetec,    2017,  91344, 2.0, FuelType.Diesel,  TransmissionType.Automatic, BodyType.MPV, 7, 5, "Silver", 2, new DateOnly(2025,11,1)),
-            (ford, smax, titanium, 2019,  60210, 2.0, FuelType.Diesel,  TransmissionType.Automatic, BodyType.MPV, 7, 5, "Black",  1, new DateOnly(2026, 5,1)),
-            (ford, focus, trend,   2016, 120500, 1.5, FuelType.Petrol,  TransmissionType.Manual,    BodyType.Hatchback, 5, 5, "Blue",  3, new DateOnly(2025, 8,1)),
-            (vw, golf, comfort,    2018,  84500, 1.6, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Hatchback, 5, 5, "White", 2, new DateOnly(2026, 2,1)),
-            (vw, passat, rline,    2020,  45500, 2.0, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "Grey",  1, new DateOnly(2026, 9,1)),
-            (bmw, series3, se,     2017, 110000, 2.0, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "Black", 2, new DateOnly(2025,12,1)),
-            (bmw, series3, msport, 2019,  70000, 2.0, FuelType.Petrol,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "Red",   1, new DateOnly(2026, 7,1)),
-            (bmw, series5, luxury, 2018,  98000, 2.0, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "Navy",  2, new DateOnly(2026, 1,1)),
-            (toy, corolla, null,   2015, 150200, 1.4, FuelType.Petrol,  TransmissionType.Manual,    BodyType.Sedan, 5, 4, "Silver",3, new DateOnly(2025, 6,1)),
-            (toy, rav4, active,    2021,  39000, 2.5, FuelType.Hybrid,  TransmissionType.Automatic, BodyType.SUV,  5, 5, "White", 1, new DateOnly(2027, 3,1)),
-            (audi, a4, sline,      2019,  76000, 2.0, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "Grey",  2, new DateOnly(2026, 4,1)),
-            (audi, q5, sport,      2020,  52000, 2.0, FuelType.Diesel,  TransmissionType.Automatic, BodyType.SUV,  5, 5, "Black", 1, new DateOnly(2026,11,1)),
-            (vw, golf, comfort,    2014, 170000, 1.2, FuelType.Petrol,  TransmissionType.Manual,    BodyType.Hatchback, 5, 5, "Green",4, new DateOnly(2025, 4,1)),
-            (ford, focus, trend,   2022,  21000, 1.0, FuelType.Petrol,  TransmissionType.Manual,    BodyType.Hatchback, 5, 5, "Orange",1, new DateOnly(2027,10,1)),
-            (bmw, series5, luxury, 2021,  33000, 3.0, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "White", 1, new DateOnly(2027, 1,1)),
+            (ford, smax, zetec,    2017,  91344, 2.0m, FuelType.Diesel,  TransmissionType.Automatic, BodyType.MPV, 7, 5, "Silver", 2, new DateOnly(2025,11,1)),
+            (ford, smax, titanium, 2019,  60210, 2.0m, FuelType.Diesel,  TransmissionType.Automatic, BodyType.MPV, 7, 5, "Black",  1, new DateOnly(2026, 5,1)),
+            (ford, focus, trend,   2016, 120500, 1.5m, FuelType.Petrol,  TransmissionType.Manual,    BodyType.Hatchback, 5, 5, "Blue",  3, new DateOnly(2025, 8,1)),
+            (vw, golf, comfort,    2018,  84500, 1.6m, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Hatchback, 5, 5, "White", 2, new DateOnly(2026, 2,1)),
+            (vw, passat, rline,    2020,  45500, 2.0m, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "Grey",  1, new DateOnly(2026, 9,1)),
+            (bmw, series3, se,     2017, 110000, 2.0m, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "Black", 2, new DateOnly(2025,12,1)),
+            (bmw, series3, msport, 2019,  70000, 2.0m, FuelType.Petrol,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "Red",   1, new DateOnly(2026, 7,1)),
+            (bmw, series5, luxury, 2018,  98000, 2.0m, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "Navy",  2, new DateOnly(2026, 1,1)),
+            (toy, corolla, null,   2015, 150200, 1.4m, FuelType.Petrol,  TransmissionType.Manual,    BodyType.Sedan, 5, 4, "Silver",3, new DateOnly(2025, 6,1)),
+            (toy, rav4, active,    2021,  39000, 2.5m, FuelType.Hybrid,  TransmissionType.Automatic, BodyType.SUV,  5, 5, "White", 1, new DateOnly(2027, 3,1)),
+            (audi, a4, sline,      2019,  76000, 2.0m, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "Grey",  2, new DateOnly(2026, 4,1)),
+            (audi, q5, sport,      2020,  52000, 2.0m, FuelType.Diesel,  TransmissionType.Automatic, BodyType.SUV,  5, 5, "Black", 1, new DateOnly(2026,11,1)),
+            (vw, golf, comfort,    2014, 170000, 1.2m, FuelType.Petrol,  TransmissionType.Manual,    BodyType.Hatchback, 5, 5, "Green",4, new DateOnly(2025, 4,1)),
+            (ford, focus, trend,   2022,  21000, 1.0m, FuelType.Petrol,  TransmissionType.Manual,    BodyType.Hatchback, 5, 5, "Orange",1, new DateOnly(2027,10,1)),
+            (bmw, series5, luxury, 2021,  33000, 3.0m, FuelType.Diesel,  TransmissionType.Automatic, BodyType.Sedan, 5, 4, "White", 1, new DateOnly(2027, 1,1)),
         };
 
         var createdVehicles = new List<Vehicle>();

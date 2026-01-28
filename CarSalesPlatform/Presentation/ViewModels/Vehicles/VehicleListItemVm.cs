@@ -1,4 +1,6 @@
-﻿namespace Presentation.ViewModels.Vehicles;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Presentation.ViewModels.Vehicles;
 
 public class VehicleListItemVm
 {
@@ -13,7 +15,8 @@ public class VehicleListItemVm
 
     public string FuelType { get; set; } = "";
     public string Transmission { get; set; } = "";
-    public string BodyType { get; set; } = "";
+    public string BodyType { get; set; } = ""; 
+    public decimal Price { get; set; }
     public bool IsPublished { get; set; }
 
     public string? CoverPhotoUrl { get; set; }

@@ -54,6 +54,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasPrecision(3, 1);
 
         b.Entity<Vehicle>()
+            .Property(x => x.Price)
+            .HasPrecision(12, 0);
+
+        b.Entity<Vehicle>()
             .HasOne(x => x.Make)
             .WithMany(x => x.Vehicles)
             .HasForeignKey(x => x.MakeId)

@@ -20,7 +20,7 @@ public class Vehicle
     public int Mileage { get; set; }
     public MileageUnit MileageUnit { get; set; } = MileageUnit.Miles;
 
-    public double EngineLiters { get; set; }
+    public decimal EngineLiters { get; set; }
     public FuelType FuelType { get; set; }
     public TransmissionType Transmission { get; set; }
     public BodyType BodyType { get; set; }
@@ -33,6 +33,9 @@ public class Vehicle
 
     public int TotalOwners { get; set; }
     public DateOnly? NctExpiry { get; set; }
+
+    [Range(0, 999999999)]
+    public decimal Price { get; set; }
 
     // 🔹 İLAN YAYIN DURUMU
     public bool IsPublished { get; set; } = false;

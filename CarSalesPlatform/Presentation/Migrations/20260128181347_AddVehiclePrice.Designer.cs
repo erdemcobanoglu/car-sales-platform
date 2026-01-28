@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Presentation.Data;
 
@@ -11,9 +12,11 @@ using Presentation.Data;
 namespace Presentation.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260128181347_AddVehiclePrice")]
+    partial class AddVehiclePrice
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -322,9 +325,9 @@ namespace Presentation.Migrations
                     b.Property<int>("Doors")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("EngineLiters")
+                    b.Property<double>("EngineLiters")
                         .HasPrecision(3, 1)
-                        .HasColumnType("decimal(3,1)");
+                        .HasColumnType("float(3)");
 
                     b.Property<int>("FuelType")
                         .HasColumnType("int");
@@ -352,8 +355,7 @@ namespace Presentation.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<decimal>("Price")
-                        .HasPrecision(12)
-                        .HasColumnType("decimal(12,0)");
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("Seats")
                         .HasColumnType("int");
