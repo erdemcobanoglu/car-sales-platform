@@ -1,5 +1,4 @@
-﻿```cshtml
-@model Presentation.Models.Vehicle
+﻿@model Presentation.Models.Vehicle
 
 @functions {
     string Variant(string? url, string suffix)
@@ -23,9 +22,12 @@
         .OrderBy(p => p.SortOrder)
         .ToList();
 
-    // ✅ placeholder yok: kırık/boşsa ana foto alanı hiç görünmeyecek
+    // ✅ placeholder yok
     var cover = photos.FirstOrDefault(p => p.IsCover)?.Url
                 ?? photos.FirstOrDefault()?.Url;
+
+    // ✅ JS için sıralı large url listesi (boşlar atıldı)
+    var photoUrls = photos.Select(p => p.Url).Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
 }
 
 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -57,7 +59,7 @@
         <div class="card shadow-sm">
             <div class="card-body">
 
-                <!-- ✅ Ana foto alanı başlangıçta gizli (flash / broken icon yok) -->
+                <!-- ✅ Ana foto alanı başlangıçta gizli -->
                 <div id="mainPhotoWrap" class="ratio ratio-16x9 bg-light rounded overflow-hidden d-none" style="max-height:520px;">
                     <img id="mainPhoto"
                          src=""
@@ -187,7 +189,7 @@
 
 @section Scripts {
     <script>
-        // ✅ Ana foto: kırık ise hiç görünmesin (wrapper gizli kalsın)
+        // ✅ Ana foto: kırık ise sıradaki sağlamı otomatik seç
         const wrap = document.getElementById('mainPhotoWrap');
         const main = document.getElementById('mainPhoto');
 
@@ -196,31 +198,52 @@
             main.removeAttribute('src');
         }
 
-        function showPhoto(url) {
-            // flash olmasın diye önce gizle
+        // Tek bir URL'i preload edip sonuç döndürür
+        function preload(url) {
+            return new Promise(resolve => {
+                if (!url || !url.trim()) return resolve(false);
+                const img = new Image();
+                img.onload = () => resolve(true);
+                img.onerror = () => resolve(false);
+                img.src = url;
+            });
+        }
+
+        async function showFirstWorking(urls) {
             hideMain();
 
-            if (!url || !url.trim()) return;
-
-            const test = new Image();
-            test.onload = () => {
-                main.src = url;
-                wrap.classList.remove('d-none');
-            };
-            test.onerror = () => {
-                hideMain();
-            };
-            test.src = url;
+            for (const url of urls) {
+                const ok = await preload(url);
+                if (ok) {
+                    main.src = url;
+                    wrap.classList.remove('d-none');
+                    return true;
+                }
+            }
+            // hiçbiri çalışmadıysa: hiç gösterme
+            hideMain();
+            return false;
         }
 
+        // Kullanıcı tıklayınca da aynı kontrolle aç
         function setMainPhoto(url) {
-            showPhoto(url);
+            showFirstWorking([url]);
         }
 
-        // ilk yükleme
+        // ilk yükleme: cover önce, sonra diğerleri
         (function initMain() {
             const cover = '@(cover ?? "")';
-            showPhoto(cover);
+            const all = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(photoUrls));
+
+            // cover'u başa al, duplicate varsa çıkar
+            const unique = [];
+            if (cover && cover.trim()) unique.push(cover);
+
+            for (const u of all) {
+                if (u && (!cover || u !== cover)) unique.push(u);
+            }
+
+            showFirstWorking(unique);
         })();
     </script>
 }
