@@ -140,6 +140,13 @@ public class VehiclesController : Controller
             ("mileage", true) => query.OrderByDescending(x => x.Mileage),
             ("mileage", false) => query.OrderBy(x => x.Mileage),
 
+            ("trim", true) => query.OrderByDescending(x => x.Trim),
+            ("trim", false) => query.OrderBy(x => x.Trim),
+
+            ("price", true) => query.OrderByDescending(x => x.Price),
+            ("price", false) => query.OrderBy(x => x.Price), 
+
+
             _ => query.OrderByDescending(x => x.Id)
         };
 

@@ -1,10 +1,9 @@
-﻿using Azure.Core;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Presentation.Data;
 using Presentation.Models.Enums;
 using Presentation.Models;
-using Presentation.ViewModels.Vehicles; 
+using Presentation.ViewModels.Vehicles;
 
 namespace Presentation.Controllers
 {
@@ -63,7 +62,7 @@ namespace Presentation.Controllers
             // ✅ recordsFiltered AFTER filtering
             var recordsFiltered = await baseQuery.CountAsync();
 
-            // ✅ Sorting (entity level)
+            
             baseQuery = (sortColName, sortDir?.ToLowerInvariant()) switch
             {
                 ("make", "desc") => baseQuery.OrderByDescending(x => x.Make.Name),
@@ -72,8 +71,14 @@ namespace Presentation.Controllers
                 ("model", "desc") => baseQuery.OrderByDescending(x => x.Model.Name),
                 ("model", _) => baseQuery.OrderBy(x => x.Model.Name),
 
+                ("trim", "desc") => baseQuery.OrderByDescending(x => x.Trim!.Name),
+                ("trim", _) => baseQuery.OrderBy(x => x.Trim!.Name),
+
                 ("year", "desc") => baseQuery.OrderByDescending(x => x.Year),
                 ("year", _) => baseQuery.OrderBy(x => x.Year),
+
+                ("price", "desc") => baseQuery.OrderByDescending(x => x.Price),
+                ("price", _) => baseQuery.OrderBy(x => x.Price),
 
                 ("mileage", "desc") => baseQuery.OrderByDescending(x => x.Mileage),
                 ("mileage", _) => baseQuery.OrderBy(x => x.Mileage),
@@ -92,12 +97,13 @@ namespace Presentation.Controllers
                     Model = v.Model.Name,
                     Trim = v.Trim != null ? v.Trim.Name : null,
                     Year = v.Year,
+                    Price = v.Price,
                     Mileage = v.Mileage,
                     MileageUnit = v.MileageUnit.ToString(),
                     FuelType = v.FuelType.ToString(),
                     Transmission = v.Transmission.ToString(),
                     BodyType = v.BodyType.ToString(),
-                    Price = v.Price,
+
                     // cover (önce IsCover, yoksa ilk foto)
                     CoverPhotoUrl = v.Photos
                         .OrderBy(p => p.SortOrder)
@@ -150,15 +156,12 @@ namespace Presentation.Controllers
                 bool bodyParsed = Enum.TryParse<BodyType>(term, true, out var body);
 
                 query = query.Where(v =>
-                    // text fields
                     EF.Functions.Like(v.Make.Name, like) ||
                     EF.Functions.Like(v.Model.Name, like) ||
                     (v.Trim != null && EF.Functions.Like(v.Trim.Name, like)) ||
 
-                    // numeric
                     (isNumber && (v.Year == number || v.Mileage == number)) ||
 
-                    // enum exact match (SQL-safe)
                     (fuelParsed && v.FuelType == fuel) ||
                     (transParsed && v.Transmission == trans) ||
                     (bodyParsed && v.BodyType == body)
@@ -169,14 +172,12 @@ namespace Presentation.Controllers
         [HttpGet]
         public async Task<IActionResult> Details(int id)
         {
-            // ✅ Lazy loading için: AsNoTracking YOK, Include YOK
             var v = await _db.Vehicles
                 .Where(x => x.IsPublished && x.Id == id)
                 .FirstOrDefaultAsync();
 
             if (v == null) return NotFound();
 
-            // ✅ Photos sıralaması garanti olsun diye explicit load + order
             await _db.Entry(v)
                 .Collection(x => x.Photos)
                 .Query()
@@ -186,4 +187,4 @@ namespace Presentation.Controllers
             return View(v);
         }
     }
-} 
+}
