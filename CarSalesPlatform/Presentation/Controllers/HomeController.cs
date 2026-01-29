@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Azure.Core;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Presentation.Data;
 using Presentation.Models.Enums;
 using Presentation.Models;
-using Presentation.ViewModels.Vehicles;
+using Presentation.ViewModels.Vehicles; 
 
 namespace Presentation.Controllers
 {
@@ -37,7 +38,7 @@ namespace Presentation.Controllers
             var sortDir = Request.Form["order[0][dir]"].FirstOrDefault();
             var sortColName = Request.Form[$"columns[{sortColIndex}][data]"].FirstOrDefault();
 
-            // ✅ Base query (published only) — Include YOK (projection zaten join yaptırır)
+            // ✅ Base query (published only)
             var baseQuery = _db.Vehicles
                 .AsNoTracking()
                 .Where(v => v.IsPublished)
@@ -96,20 +97,38 @@ namespace Presentation.Controllers
                     FuelType = v.FuelType.ToString(),
                     Transmission = v.Transmission.ToString(),
                     BodyType = v.BodyType.ToString(),
+
+                    // cover (önce IsCover, yoksa ilk foto)
                     CoverPhotoUrl = v.Photos
                         .OrderBy(p => p.SortOrder)
                         .Where(p => p.IsCover)
                         .Select(p => p.Url)
                         .FirstOrDefault()
-                        ?? v.Photos.OrderBy(p => p.SortOrder).Select(p => p.Url).FirstOrDefault()
+                        ?? v.Photos.OrderBy(p => p.SortOrder).Select(p => p.Url).FirstOrDefault(),
+
+                    // ✅ fallback için tüm url listesi
+                    PhotoUrls = v.Photos
+                        .OrderBy(p => p.SortOrder)
+                        .Select(p => p.Url)
+                        .ToList()
                 })
                 .ToListAsync();
 
-            // ✅ medium photo in list
+            // ✅ medium photo in list (hem cover hem list)
             foreach (var item in data)
             {
                 if (!string.IsNullOrWhiteSpace(item.CoverPhotoUrl))
                     item.CoverPhotoUrl = item.CoverPhotoUrl.Replace("_large.jpg", "_medium.jpg");
+
+                if (item.PhotoUrls != null && item.PhotoUrls.Count > 0)
+                {
+                    for (int i = 0; i < item.PhotoUrls.Count; i++)
+                    {
+                        var u = item.PhotoUrls[i];
+                        if (!string.IsNullOrWhiteSpace(u))
+                            item.PhotoUrls[i] = u.Replace("_large.jpg", "_medium.jpg");
+                    }
+                }
             }
 
             return Json(new { draw, recordsTotal, recordsFiltered, data });
@@ -164,8 +183,7 @@ namespace Presentation.Controllers
                 .OrderBy(p => p.SortOrder)
                 .LoadAsync();
 
-            // Make/Model/Trim/Owner vs. View içinde erişilince lazy-load olur (virtual nav + proxies)
             return View(v);
         }
     }
-}
+} 

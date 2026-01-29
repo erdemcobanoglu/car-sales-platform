@@ -20,4 +20,6 @@ public class VehicleListItemVm
     public bool IsPublished { get; set; }
 
     public string? CoverPhotoUrl { get; set; }
+    public List<string>? PhotoUrls { get; set; }
+
 }
