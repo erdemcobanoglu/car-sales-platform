@@ -97,7 +97,7 @@ namespace Presentation.Controllers
                     FuelType = v.FuelType.ToString(),
                     Transmission = v.Transmission.ToString(),
                     BodyType = v.BodyType.ToString(),
-
+                    Price = v.Price,
                     // cover (önce IsCover, yoksa ilk foto)
                     CoverPhotoUrl = v.Photos
                         .OrderBy(p => p.SortOrder)

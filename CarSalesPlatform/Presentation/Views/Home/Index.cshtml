@@ -1,5 +1,4 @@
-﻿
-@{
+﻿@{
     ViewData["Title"] = "Vehicles";
     var q = (ViewBag.Search as string) ?? "";
 }
@@ -110,6 +109,7 @@
                 <th>Model</th>
                 <th>Trim</th>
                 <th>Year</th>
+                <th>Price</th>
                 <th>Mileage</th>
                 <th>Fuel</th>
                 <th>Transmission</th>
@@ -163,6 +163,13 @@
             imgEl.closest('a')?.remove();
         }
 
+        const formatPrice = (value) => {
+            if (value === null || value === undefined || value === '') return '-';
+            const n = Number(value);
+            if (Number.isNaN(n)) return value;
+            return '€' + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        };
+
         $('#vehiclesTable').DataTable({
             serverSide: true,
             processing: true,
@@ -193,17 +200,17 @@
 
             columnDefs: [
                 { targets: 0, width: "140px", orderable: false, searchable: false },
-                { targets: 8, width: "110px", orderable: false, searchable: false },
+                { targets: 9, width: "110px", orderable: false, searchable: false }, // ✅ Details artık 9
 
-                // Mobil öncelik (küçük ekranda düşük öncelikler saklanır)
+                // Mobil öncelik
                 { responsivePriority: 1, targets: 0 },   // Photo
                 { responsivePriority: 2, targets: 1 },   // Make
                 { responsivePriority: 3, targets: 2 },   // Model
-                { responsivePriority: 4, targets: 8 },   // Details
+                { responsivePriority: 4, targets: 9 },   // Details
                 { responsivePriority: 100, targets: 3 }, // Trim
-                { responsivePriority: 101, targets: 5 }, // Mileage
-                { responsivePriority: 102, targets: 6 }, // Fuel
-                { responsivePriority: 103, targets: 7 }  // Transmission
+                { responsivePriority: 101, targets: 6 }, // Mileage (index kaydı)
+                { responsivePriority: 102, targets: 7 }, // Fuel
+                { responsivePriority: 103, targets: 8 }  // Transmission
             ],
 
             columns: [
@@ -212,7 +219,7 @@
                     render: function (_, __, row) {
                         const detailsUrl = `${detailsBaseUrl}/${row.id}`;
 
-                        // cover + diğerleri (duplicate temizle)
+                        // cover + diğerleri
                         const urls = [];
                         if (row.coverPhotoUrl) urls.push(row.coverPhotoUrl);
                         if (row.photoUrls && row.photoUrls.length) {
@@ -221,12 +228,9 @@
                             });
                         }
 
-                        // ✅ Foto yoksa boş bırak (placeholder yok)
                         if (!urls.length) return '';
 
                         const imgId = `vehimg_${row.id}`;
-
-                        // data-urls JSON taşımak için tek tırnak içindeyiz; ' karakterini kaçır
                         const urlsJson = JSON.stringify(urls).replace(/'/g, "&apos;");
 
                         return `
@@ -247,6 +251,15 @@
                 { data: 'model' },
                 { data: 'trim' },
                 { data: 'year' },
+
+                // ✅ Price
+                {
+                    data: 'price',
+                    render: function (value) {
+                        return `<span class="fw-semibold">${formatPrice(value)}</span>`;
+                    }
+                },
+
                 { data: 'mileage' },
                 { data: 'fuelType' },
                 { data: 'transmission' },
@@ -259,7 +272,7 @@
                 }
             ],
 
-            // ✅ Her draw'da (ilk yükleme, sayfa değişimi vs.) ilk sağlam foto seç
+            // ✅ Her draw'da ilk sağlam foto seç
             drawCallback: function () {
                 document.querySelectorAll('#vehiclesTable img[data-urls]').forEach(img => {
                     if (img.dataset.bound === "1") return;
@@ -269,4 +282,4 @@
             }
         });
     </script>
-} 
+}

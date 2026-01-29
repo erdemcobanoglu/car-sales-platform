@@ -50,7 +50,7 @@
     .table-responsive.vehicle-table-wrap {
         overflow-x: auto;
     }
-     
+
     @@media (max-width:576px) {
         .vehicle-table-wrap {
             padding: 8px;
@@ -85,6 +85,7 @@
                 <th>Model</th>
                 <th>Trim</th>
                 <th>Year</th>
+                <th>Price</th>
                 <th>Mileage</th>
                 <th>Fuel</th>
                 <th>Transmission</th>
@@ -108,6 +109,13 @@
     <script>
         const antiForgeryToken = document.querySelector('#antiForgeryForm input[name="__RequestVerificationToken"]').value;
 
+        const formatPrice = (value) => {
+            if (value === null || value === undefined || value === '') return '-';
+            const n = Number(value);
+            if (Number.isNaN(n)) return value;
+            return '€' + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        };
+
         const table = $('#vehiclesTable').DataTable({
             serverSide: true,
             processing: true,
@@ -115,7 +123,6 @@
             scrollX: true,
             autoWidth: false,
 
-            // ✅ DataTables kendi search input'u (istersen aç)
             // searching: true,
             // dom: 'frtip',
 
@@ -123,11 +130,9 @@
                 url: '@Url.Action("Datatable", "Vehicles")',
                 type: 'POST',
                 data: function (d) {
-                    // ✅ Token'ı her isteğe ekle
                     d.__RequestVerificationToken = antiForgeryToken;
                 },
                 error: function (xhr) {
-                    // ✅ Gerçek hatayı burada görürsün
                     console.error("Datatable Ajax Error:", {
                         status: xhr.status,
                         statusText: xhr.statusText,
@@ -137,15 +142,17 @@
             },
 
             columnDefs: [
-                { targets: 7, orderable: false, searchable: false, width: "190px" },
+                { targets: 8, orderable: false, searchable: false, width: "190px" }, // ✅ Actions artık 8
+
                 { responsivePriority: 1, targets: 0 },
                 { responsivePriority: 2, targets: 1 },
                 { responsivePriority: 3, targets: 3 },
-                { responsivePriority: 4, targets: 7 },
+                { responsivePriority: 4, targets: 8 },
+
                 { responsivePriority: 100, targets: 2 },
-                { responsivePriority: 101, targets: 4 },
-                { responsivePriority: 102, targets: 5 },
-                { responsivePriority: 103, targets: 6 }
+                { responsivePriority: 101, targets: 5 }, // Mileage index kaydı
+                { responsivePriority: 102, targets: 6 }, // Fuel
+                { responsivePriority: 103, targets: 7 }  // Transmission
             ],
 
             columns: [
@@ -153,6 +160,15 @@
                 { data: 'model' },
                 { data: 'trim' },
                 { data: 'year' },
+
+                // ✅ Price
+                {
+                    data: 'price',
+                    render: function (value) {
+                        return `<span class="fw-semibold">${formatPrice(value)}</span>`;
+                    }
+                },
+
                 { data: 'mileage' },
                 { data: 'fuelType' },
                 { data: 'transmission' },
@@ -173,9 +189,6 @@
                 }
             ]
         });
-
-        // ✅ Eğer "arama kutusu" istiyorsan (DataTables default search)
-        // Yukarıda searching:true ve dom:'frtip' açman yeterli.
 
         $('#btnCreate').on('click', function () {
             window.location.href = '@Url.Action("Create", "Vehicles")';
@@ -199,4 +212,3 @@
         window.deleteVehicle = deleteVehicle;
     </script>
 }
-
