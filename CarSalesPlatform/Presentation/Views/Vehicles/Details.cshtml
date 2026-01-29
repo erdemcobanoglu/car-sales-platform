@@ -1,9 +1,30 @@
-﻿@model Presentation.Models.Vehicle
+﻿```cshtml
+@model Presentation.Models.Vehicle
+
+@functions {
+    string Variant(string? url, string suffix)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return "";
+        if (url.EndsWith("_large.jpg", StringComparison.OrdinalIgnoreCase))
+            return url.Replace("_large.jpg", $"_{suffix}.jpg");
+
+        var dot = url.LastIndexOf('.');
+        if (dot < 0) return url;
+        return url.Insert(dot, $"_{suffix}");
+    }
+}
 
 @{
     ViewData["Title"] = "Vehicle Details";
-    var cover = Model.Photos?.FirstOrDefault(p => p.IsCover)?.Url
-                ?? Model.Photos?.OrderBy(p => p.SortOrder).FirstOrDefault()?.Url
+
+    // ✅ sadece URL'i dolu olan fotolar
+    var photos = (Model.Photos ?? Enumerable.Empty<Presentation.Models.VehiclePhoto>())
+        .Where(p => !string.IsNullOrWhiteSpace(p.Url))
+        .OrderBy(p => p.SortOrder)
+        .ToList();
+
+    var cover = photos.FirstOrDefault(p => p.IsCover)?.Url
+                ?? photos.FirstOrDefault()?.Url
                 ?? "https://via.placeholder.com/1200x700?text=No+Photo";
 }
 
@@ -37,23 +58,26 @@
                          src="@cover"
                          class="w-100 h-100"
                          style="object-fit: cover;"
-                         alt="Vehicle photo" />
+                         alt="" />
                 </div>
 
-                @if (Model.Photos != null && Model.Photos.Any())
+                @if (photos.Any())
                 {
                     <div class="mt-3 d-flex flex-wrap gap-2">
-                        @foreach (var p in Model.Photos.OrderBy(x => x.SortOrder))
+                        @foreach (var p in photos)
                         {
+                            var thumbUrl = Variant(p.Url, "thumb");
+
                             <button type="button"
                                     class="border-0 p-0 bg-transparent"
                                     onclick="setMainPhoto('@p.Url')">
-                                <img src="@p.Url"
-                                     alt="thumb"
+                                <img src="@thumbUrl"
+                                     alt=""
                                      width="88"
                                      height="56"
                                      class="rounded border"
-                                     style="object-fit: cover;" />
+                                     style="object-fit: cover;"
+                                     onerror="this.closest('button')?.remove();" />
                             </button>
                         }
                     </div>
@@ -100,7 +124,7 @@
                     </dd>
 
                     <dt class="col-6 text-muted">Price</dt>
-                    <dd class="col-6 text-end fw-semibold">€@Model.Price.ToString("N0")</dd> 
+                    <dd class="col-6 text-end fw-semibold">€@Model.Price.ToString("N0")</dd>
 
                     <dt class="col-6 text-muted">Contact </dt>
                     <dd class="col-6 text-end fw-semibold">@Model.Owner?.Profile?.Phone</dd>
@@ -179,9 +203,7 @@
             document.getElementById('mainPhoto').src = url;
         }
 
-        // Eğer Details sayfasında da modal edit istiyorsan (Index’teki modal mantığıyla):
         async function openEditFromDetails(id) {
-            // İstersen bu kısmı sonra indextekine benzer modal ile ekleriz.
             window.location.href = '@Url.Action("Edit", "Vehicles")/' + id;
         }
 
@@ -207,3 +229,4 @@
         }
     </script>
 }
+```

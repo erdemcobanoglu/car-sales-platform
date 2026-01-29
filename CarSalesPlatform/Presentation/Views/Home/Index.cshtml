@@ -50,10 +50,10 @@
         display: block;
     }
 
-    .vehicle-thumb:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 10px 22px rgba(0,0,0,.10);
-    }
+        .vehicle-thumb:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(0,0,0,.10);
+        }
 
     /* Details butonu daha kurumsal */
     .btn-corp {
@@ -75,6 +75,7 @@
             height: 64px;
             border-radius: 10px;
         }
+
         .vehicle-table-wrap {
             padding: 8px;
         }
@@ -165,10 +166,10 @@
                 { targets: 8, width: "110px", orderable: false, searchable: false },
 
                 // Mobil öncelik (küçük ekranda düşük öncelikler saklanır)
-                { responsivePriority: 1, targets: 0 },  // Photo
-                { responsivePriority: 2, targets: 1 },  // Make
-                { responsivePriority: 3, targets: 2 },  // Model
-                { responsivePriority: 4, targets: 8 },  // Details
+                { responsivePriority: 1, targets: 0 },   // Photo
+                { responsivePriority: 2, targets: 1 },   // Make
+                { responsivePriority: 3, targets: 2 },   // Model
+                { responsivePriority: 4, targets: 8 },   // Details
                 { responsivePriority: 100, targets: 3 }, // Trim
                 { responsivePriority: 101, targets: 5 }, // Mileage
                 { responsivePriority: 102, targets: 6 }, // Fuel
@@ -179,20 +180,25 @@
                 {
                     data: 'coverPhotoUrl',
                     render: function (url, type, row) {
+                        // ✅ Foto yoksa: boş bırak (placeholder yok)
+                        //if (!url) return '';
+
                         // Kurumsal placeholder
                         const img = url ? url : 'https://placehold.co/224x144/png?text=No+Photo';
+
                         const detailsUrl = `${detailsBaseUrl}/${row.id}`;
 
                         return `
-                            <a href="${detailsUrl}" class="d-inline-block" title="View details">
-                                <img
-                                    src="${img}"
-                                    alt="vehicle"
-                                    loading="lazy"
-                                    class="vehicle-thumb"
-                                />
-                            </a>
-                        `;
+                                    <a href="${detailsUrl}" class="d-inline-block" title="View details">
+                                        <img
+                                            src="${url}"
+                                            alt=""
+                                            loading="lazy"
+                                            class="vehicle-thumb"
+                                            onerror="this.closest('a')?.remove();"
+                                        />
+                                    </a>
+                                `;
                     }
                 },
                 { data: 'make' },
