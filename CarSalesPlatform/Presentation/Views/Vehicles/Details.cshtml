@@ -25,6 +25,9 @@
     // ✅ placeholder yok: kırık/boşsa ana foto alanı hiç görünmeyecek
     var cover = photos.FirstOrDefault(p => p.IsCover)?.Url
                 ?? photos.FirstOrDefault()?.Url;
+
+    // ✅ JS için sıralı large url listesi
+    var photoUrls = photos.Select(p => p.Url).Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
 }
 
 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -200,7 +203,7 @@
 
 @section Scripts {
     <script>
-        // ✅ Ana foto: kırık ise hiç görünmesin (wrapper gizli kalsın)
+        // ✅ Ana foto: kırık ise sıradaki sağlamı otomatik seç
         const wrap = document.getElementById('mainPhotoWrap');
         const main = document.getElementById('mainPhoto');
 
@@ -209,31 +212,51 @@
             main.removeAttribute('src');
         }
 
-        function showPhoto(url) {
-            // flash olmasın diye önce gizle
+        function preload(url) {
+            return new Promise(resolve => {
+                if (!url || !url.trim()) return resolve(false);
+                const img = new Image();
+                img.onload = () => resolve(true);
+                img.onerror = () => resolve(false);
+                img.src = url;
+            });
+        }
+
+        async function showFirstWorking(urls) {
             hideMain();
 
-            if (!url || !url.trim()) return;
+            for (const url of urls) {
+                const ok = await preload(url);
+                if (ok) {
+                    main.src = url;
+                    wrap.classList.remove('d-none');
+                    return true;
+                }
+            }
 
-            const test = new Image();
-            test.onload = () => {
-                main.src = url;
-                wrap.classList.remove('d-none');
-            };
-            test.onerror = () => {
-                hideMain();
-            };
-            test.src = url;
+            // hiçbiri çalışmadıysa: hiç gösterme
+            hideMain();
+            return false;
         }
 
+        // tıklamada da kontrol ederek göster
         function setMainPhoto(url) {
-            showPhoto(url);
+            showFirstWorking([url]);
         }
 
-        // ilk yükleme
+        // ilk yükleme: cover önce, sonra diğerleri
         (function initMain() {
             const cover = '@(cover ?? "")';
-            showPhoto(cover);
+            const all = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(photoUrls));
+
+            const unique = [];
+            if (cover && cover.trim()) unique.push(cover);
+
+            for (const u of all) {
+                if (u && (!cover || u !== cover)) unique.push(u);
+            }
+
+            showFirstWorking(unique);
         })();
 
         async function openEditFromDetails(id) {
