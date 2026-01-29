@@ -1,8 +1,7 @@
 name: Preprod Deploy
 
 on:
-  push:
-    branches: [ "master" ]   # branch'in main ise "main" yap
+  workflow_dispatch: {}   # Manuel tetikleme
 
 jobs:
   build-and-deploy:
