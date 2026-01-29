@@ -33,12 +33,9 @@ jobs:
           target: "/var/www/preprod"
           strip_components: 1
 
-      - name: Restart service
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            sudo systemctl restart preprod
-            sudo systemctl status preprod --no-pager
+      - name: Deploy done (manual restart required)
+        run: |
+          echo "✅ Files copied to /var/www/preprod"
+          echo "ℹ️ Please restart the service manually on the server:"
+          echo "   sudo systemctl restart preprod"
+          echo "   sudo systemctl status preprod --no-pager"
