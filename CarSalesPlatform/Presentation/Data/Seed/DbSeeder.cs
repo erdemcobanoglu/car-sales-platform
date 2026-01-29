@@ -142,7 +142,7 @@ public static class DbSeeder
 
         await db.SaveChangesAsync();
 
-        // ===== FOTO SEED =====
+        // ===== FOTO SEED =====  
         const int photosPerVehicle = 5;
         int vehicleIndex = 1;
 
