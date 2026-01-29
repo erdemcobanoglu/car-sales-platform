@@ -1,4 +1,5 @@
-﻿@model Presentation.Models.Vehicle
+﻿```cshtml
+@model Presentation.Models.Vehicle
 
 @functions {
     string Variant(string? url, string suffix)
@@ -22,9 +23,9 @@
         .OrderBy(p => p.SortOrder)
         .ToList();
 
+    // ✅ placeholder yok: kırık/boşsa ana foto alanı hiç görünmeyecek
     var cover = photos.FirstOrDefault(p => p.IsCover)?.Url
-                ?? photos.FirstOrDefault()?.Url
-                ?? "https://via.placeholder.com/1200x700?text=No+Photo";
+                ?? photos.FirstOrDefault()?.Url;
 }
 
 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -55,9 +56,11 @@
     <div class="col-lg-8">
         <div class="card shadow-sm">
             <div class="card-body">
-                <div class="ratio ratio-16x9 bg-light rounded overflow-hidden" style="max-height:520px;">
+
+                <!-- ✅ Ana foto alanı başlangıçta gizli (flash / broken icon yok) -->
+                <div id="mainPhotoWrap" class="ratio ratio-16x9 bg-light rounded overflow-hidden d-none" style="max-height:520px;">
                     <img id="mainPhoto"
-                         src="@cover"
+                         src=""
                          class="w-100 h-100"
                          style="object-fit: contain; background:#f8f9fa;"
                          alt="" />
@@ -184,8 +187,40 @@
 
 @section Scripts {
     <script>
-        function setMainPhoto(url) {
-            document.getElementById('mainPhoto').src = url;
+        // ✅ Ana foto: kırık ise hiç görünmesin (wrapper gizli kalsın)
+        const wrap = document.getElementById('mainPhotoWrap');
+        const main = document.getElementById('mainPhoto');
+
+        function hideMain() {
+            wrap.classList.add('d-none');
+            main.removeAttribute('src');
         }
+
+        function showPhoto(url) {
+            // flash olmasın diye önce gizle
+            hideMain();
+
+            if (!url || !url.trim()) return;
+
+            const test = new Image();
+            test.onload = () => {
+                main.src = url;
+                wrap.classList.remove('d-none');
+            };
+            test.onerror = () => {
+                hideMain();
+            };
+            test.src = url;
+        }
+
+        function setMainPhoto(url) {
+            showPhoto(url);
+        }
+
+        // ilk yükleme
+        (function initMain() {
+            const cover = '@(cover ?? "")';
+            showPhoto(cover);
+        })();
     </script>
 }
