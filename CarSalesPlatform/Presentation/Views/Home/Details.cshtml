@@ -76,7 +76,8 @@
                             var thumbUrl = Variant(p.Url, "thumb");
                             <button type="button"
                                     class="border-0 p-0 bg-transparent"
-                                    onclick="setMainPhoto('@p.Url')">
+                                    onclick="setMainPhoto('@p.Url')"
+                                    onmouseenter="preloadPhoto('@p.Url')">
                                 <img src="@thumbUrl"
                                      alt=""
                                      width="88"
@@ -189,16 +190,16 @@
 
 @section Scripts {
     <script>
-        // ✅ Ana foto: kırık ise sıradaki sağlamı otomatik seç
         const wrap = document.getElementById('mainPhotoWrap');
         const main = document.getElementById('mainPhoto');
 
-        function hideMain() {
+        // İlk kez çalışır bir foto bulamazsak tamamen saklarız
+        function hideMainHard() {
             wrap.classList.add('d-none');
             main.removeAttribute('src');
         }
 
-        // Tek bir URL'i preload edip sonuç döndürür
+        // Tek bir URL’i preload edip true/false döndürür
         function preload(url) {
             return new Promise(resolve => {
                 if (!url || !url.trim()) return resolve(false);
@@ -209,8 +210,10 @@
             });
         }
 
+        // ✅ İlk yükleme için: cover → diğerleri sırayla dene
         async function showFirstWorking(urls) {
-            hideMain();
+            // burada eski davranış mantıklı: ilk başta sağlam bulana kadar gizleyebiliriz
+            hideMainHard();
 
             for (const url of urls) {
                 const ok = await preload(url);
@@ -220,22 +223,33 @@
                     return true;
                 }
             }
-            // hiçbiri çalışmadıysa: hiç gösterme
-            hideMain();
+            hideMainHard();
             return false;
         }
 
-        // Kullanıcı tıklayınca da aynı kontrolle aç
-        function setMainPhoto(url) {
-            showFirstWorking([url]);
+        // ✅ Tıklama için: ESKİ resmi saklama, yeni resim hazır olunca değiştir
+        async function setMainPhoto(url) {
+            const ok = await preload(url);
+            if (!ok) return;
+
+            // ilk kez gösteriliyorsa aç
+            if (wrap.classList.contains('d-none')) {
+                wrap.classList.remove('d-none');
+            }
+
+            // hazır olunca değiştir → flicker yok
+            if (main.src !== url) main.src = url;
         }
 
-        // ilk yükleme: cover önce, sonra diğerleri
+        // İstersen hover/pointer ile ön ısıtma için dışarı açıyoruz
+        window.preloadPhoto = preload;
+        window.setMainPhoto = setMainPhoto;
+
+        // ilk yükleme
         (function initMain() {
             const cover = '@(cover ?? "")';
             const all = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(photoUrls));
 
-            // cover'u başa al, duplicate varsa çıkar
             const unique = [];
             if (cover && cover.trim()) unique.push(cover);
 
@@ -247,3 +261,4 @@
         })();
     </script>
 }
+

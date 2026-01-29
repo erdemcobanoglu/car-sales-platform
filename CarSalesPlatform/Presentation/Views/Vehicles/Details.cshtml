@@ -74,7 +74,8 @@
 
                             <button type="button"
                                     class="border-0 p-0 bg-transparent"
-                                    onclick="setMainPhoto('@p.Url')">
+                                    onclick="setMainPhoto('@p.Url')"
+                                    onmouseenter="preloadPhoto('@p.Url')">
                                 <img src="@thumbUrl"
                                      alt=""
                                      width="88"
@@ -203,15 +204,17 @@
 
 @section Scripts {
     <script>
-        // ✅ Ana foto: kırık ise sıradaki sağlamı otomatik seç
+        // ✅ Ana foto: ilk yüklemede kırık ise sıradaki sağlamı otomatik seç
         const wrap = document.getElementById('mainPhotoWrap');
         const main = document.getElementById('mainPhoto');
 
-        function hideMain() {
+        // sadece ilk yükleme / hiç foto yok durumunda tamamen gizlemek için
+        function hideMainHard() {
             wrap.classList.add('d-none');
             main.removeAttribute('src');
         }
 
+        // Tek bir URL'i preload edip sonuç döndürür
         function preload(url) {
             return new Promise(resolve => {
                 if (!url || !url.trim()) return resolve(false);
@@ -223,7 +226,8 @@
         }
 
         async function showFirstWorking(urls) {
-            hideMain();
+            // ilk yüklemede boş/flash olmasın diye gizlemek mantıklı
+            hideMainHard();
 
             for (const url of urls) {
                 const ok = await preload(url);
@@ -235,14 +239,27 @@
             }
 
             // hiçbiri çalışmadıysa: hiç gösterme
-            hideMain();
+            hideMainHard();
             return false;
         }
 
-        // tıklamada da kontrol ederek göster
-        function setMainPhoto(url) {
-            showFirstWorking([url]);
+        // ✅ Tıklamada: ESKİ resmi saklama! Yeni resim hazır olunca değiştir.
+        async function setMainPhoto(url) {
+            const ok = await preload(url);
+            if (!ok) return;
+
+            // ilk kez gösterilecekse aç
+            if (wrap.classList.contains('d-none')) {
+                wrap.classList.remove('d-none');
+            }
+
+            // hazır olunca değiştir → flicker yok
+            if (main.src !== url) main.src = url;
         }
+
+        // (opsiyonel) dışarı aç: hover ile preload kullanabilmek için
+        window.preloadPhoto = preload;
+        window.setMainPhoto = setMainPhoto;
 
         // ilk yükleme: cover önce, sonra diğerleri
         (function initMain() {
@@ -285,3 +302,4 @@
         }
     </script>
 }
+
