@@ -1,8 +1,13 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Presentation.Data;
 using Presentation.Data.Seed;
 using Presentation.Models;
+
+// ✅ Queue/Worker namespace'ini kendi yapına göre düzelt
+using Presentation.BackgroundJobs;
+using Presentation.BackgroundJobs.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +41,33 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/Account/Denied";
 });
 
+
+// ===============================
+// ✅ PHOTO UPLOAD QUEUE + WORKER
+// ===============================
+builder.Services.AddSingleton<IPhotoJobQueue, PhotoJobQueue>();
+builder.Services.AddHostedService<PhotoProcessingWorker>();
+
+
+// ===============================
+// ✅ UPLOAD LIMITLERI
+// (Mobil çoklu foto upload için önemli)
+// ===============================
+const long maxUploadBytes = 200_000_000; // 200MB örnek
+
+// Multipart form limit
+builder.Services.Configure<FormOptions>(o =>
+{
+    o.MultipartBodyLengthLimit = maxUploadBytes;
+});
+
+// Kestrel limit (self-host için)
+builder.WebHost.ConfigureKestrel(k =>
+{
+    k.Limits.MaxRequestBodySize = maxUploadBytes;
+});
+
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
@@ -56,9 +88,9 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
+
 // ===== MIGRATION + SEED =====
 // Not: Prod'da seed istemiyorsan burayı env'e bağla.
-// ===== MIGRATION + SEED (DEV only) =====
 using var scope = app.Services.CreateScope();
 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -69,7 +101,5 @@ if (app.Environment.IsDevelopment())
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     await DbSeeder.SeedAsync(db, userManager);
 }
-
-
 
 app.Run();

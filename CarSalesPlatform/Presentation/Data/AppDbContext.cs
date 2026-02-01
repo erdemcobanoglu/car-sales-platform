@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Presentation.BackgroundJobs.PhotoUploads;
 using Presentation.Models;
 
 namespace Presentation.Data;
@@ -14,6 +15,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Trim> Trims => Set<Trim>();
     public DbSet<VehiclePhoto> VehiclePhotos => Set<VehiclePhoto>();
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+
+    public DbSet<PhotoUploadJob> PhotoUploadJobs => Set<PhotoUploadJob>();
+    public DbSet<PhotoUploadItem> PhotoUploadItems => Set<PhotoUploadItem>();
+
+
 
     protected override void OnModelCreating(ModelBuilder b)
     {

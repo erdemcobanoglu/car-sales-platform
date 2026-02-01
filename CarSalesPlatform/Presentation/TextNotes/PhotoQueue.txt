@@ -1,0 +1,519 @@
+﻿Anladım. Şu anki aksiyonun (tek request içinde tüm fotoğrafları ImageSharp ile işleyip kaydetmek) telefondan çoklu yüklemede genelde iki şeye takılıyor:
+
+1. **Request boyutu limiti** (413 / “Request body too large” gibi)
+2. **İşleme süresi** + bağlantı kopması / mobil tarayıcıların timeout’u
+
+“Önce kuyruğa al, sonra kayıt/resize işlemini yap” yaklaşımı bunu çok iyi çözer: upload endpoint’i **hızlıca dosyaları geçici diske yazar**, işi **queue’ya atar**, kullanıcıyı geri döndürür. Resize/kayıt işi **background worker**’da yapılır.
+
+Aşağıda çalışan bir mimariyi “minimum parça ile” veriyorum.
+
+---
+
+## 1) DB tabloları (Job + Item)
+
+```csharp
+public enum UploadJobStatus { Queued, Processing, Completed, Failed }
+
+public class PhotoUploadJob
+{
+    public Guid Id { get; set; }
+    public int VehicleId { get; set; }
+    public string OwnerId { get; set; } = default!;
+    public UploadJobStatus Status { get; set; }
+    public string? Error { get; set; }
+    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? CompletedUtc { get; set; }
+
+    public List<PhotoUploadItem> Items { get; set; } = new();
+}
+
+public class PhotoUploadItem
+{
+    public int Id { get; set; }
+    public Guid JobId { get; set; }
+    public PhotoUploadJob Job { get; set; } = default!;
+
+    public string TempPath { get; set; } = default!;
+    public string? ContentType { get; set; }
+    public long Length { get; set; }
+    public string? OriginalFileName { get; set; }
+}
+```
+
+---
+
+## 2) Queue altyapısı (Channel tabanlı)
+
+```csharp
+using System.Threading.Channels;
+
+public interface IPhotoJobQueue
+{
+    ValueTask EnqueueAsync(Guid jobId, CancellationToken ct = default);
+    ValueTask<Guid> DequeueAsync(CancellationToken ct);
+}
+
+public class PhotoJobQueue : IPhotoJobQueue
+{
+    private readonly Channel<Guid> _channel = Channel.CreateUnbounded<Guid>();
+
+    public ValueTask EnqueueAsync(Guid jobId, CancellationToken ct = default)
+        => _channel.Writer.WriteAsync(jobId, ct);
+
+    public ValueTask<Guid> DequeueAsync(CancellationToken ct)
+        => _channel.Reader.ReadAsync(ct);
+}
+```
+
+---
+
+## 3) Upload endpoint: “Hızlıca temp’e yaz + job oluştur + kuyruğa at”
+
+> Bu endpoint’te **ImageSharp yok**. Sadece dosyayı diske stream edip çıkıyoruz.
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+[HttpPost]
+[ValidateAntiForgeryToken]
+[RequestSizeLimit(200_000_000)] // örnek: 200MB
+[RequestFormLimits(MultipartBodyLengthLimit = 200_000_000)]
+public async Task<IActionResult> UploadPhotos(int vehicleId, List<IFormFile> files,
+    [FromServices] IPhotoJobQueue queue)
+{
+    var userId = CurrentUserId;
+
+    if (files == null || files.Count == 0)
+        return RedirectToAction(nameof(Edit), new { id = vehicleId });
+
+    if (files.Count > 10)
+    {
+        TempData["PhotoError"] = "You can upload maximum 10 photos at once.";
+        return RedirectToAction(nameof(Edit), new { id = vehicleId });
+    }
+
+    var vehicle = await _db.Vehicles
+        .AsNoTracking()
+        .FirstOrDefaultAsync(v => v.Id == vehicleId && v.OwnerId == userId);
+
+    if (vehicle == null) return NotFound();
+
+    // 1) Job oluştur
+    var job = new PhotoUploadJob
+    {
+        Id = Guid.NewGuid(),
+        VehicleId = vehicleId,
+        OwnerId = userId,
+        Status = UploadJobStatus.Queued
+    };
+    _db.Add(job);
+
+    // 2) Temp klasör
+    var tempRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "temp_uploads", job.Id.ToString("N"));
+    Directory.CreateDirectory(tempRoot);
+
+    // 3) Dosyaları temp’e yaz (stream)
+    foreach (var file in files)
+    {
+        if (file == null || file.Length <= 0) continue;
+        if (!string.IsNullOrWhiteSpace(file.ContentType) && !file.ContentType.StartsWith("image/")) continue;
+
+        var ext = Path.GetExtension(file.FileName);
+        if (string.IsNullOrWhiteSpace(ext)) ext = ".bin";
+
+        var tempName = $"{Guid.NewGuid():N}{ext}";
+        var tempPath = Path.Combine(tempRoot, tempName);
+
+        await using (var fs = System.IO.File.Create(tempPath))
+        await using (var input = file.OpenReadStream())
+        {
+            await input.CopyToAsync(fs);
+        }
+
+        job.Items.Add(new PhotoUploadItem
+        {
+            JobId = job.Id,
+            TempPath = tempPath,
+            ContentType = file.ContentType,
+            Length = file.Length,
+            OriginalFileName = file.FileName
+        });
+    }
+
+    await _db.SaveChangesAsync();
+
+    // 4) Kuyruğa at
+    await queue.EnqueueAsync(job.Id);
+
+    TempData["PhotoInfo"] = "Photos are being processed in the background.";
+    // İstersen job id’yi UI’da progress için taşı
+    TempData["PhotoJobId"] = job.Id.ToString("N");
+
+    return RedirectToAction(nameof(Edit), new { id = vehicleId });
+}
+```
+
+---
+
+## 4) Background worker: job’ı al, overflow sil, resize + DB kaydı yap
+
+Bu sınıf **HostedService** olarak sürekli çalışır.
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Processing;
+
+public class PhotoProcessingWorker : BackgroundService
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IPhotoJobQueue _queue;
+    private readonly ILogger<PhotoProcessingWorker> _logger;
+
+    public PhotoProcessingWorker(IServiceScopeFactory scopeFactory, IPhotoJobQueue queue, ILogger<PhotoProcessingWorker> logger)
+    {
+        _scopeFactory = scopeFactory;
+        _queue = queue;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            Guid jobId;
+            try
+            {
+                jobId = await _queue.DequeueAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
+            try
+            {
+                await ProcessJob(jobId, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Photo job failed: {JobId}", jobId);
+                // DB’ye Failed basmayı burada da yapabiliriz (ProcessJob içinde de var)
+            }
+        }
+    }
+
+    private async Task ProcessJob(Guid jobId, CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var job = await db.Set<PhotoUploadJob>()
+            .Include(j => j.Items)
+            .FirstOrDefaultAsync(j => j.Id == jobId, ct);
+
+        if (job == null) return;
+
+        job.Status = UploadJobStatus.Processing;
+        await db.SaveChangesAsync(ct);
+
+        try
+        {
+            var vehicle = await db.Vehicles
+                .FirstOrDefaultAsync(v => v.Id == job.VehicleId && v.OwnerId == job.OwnerId, ct);
+
+            if (vehicle == null) throw new Exception("Vehicle not found or access denied.");
+
+            await db.Entry(vehicle).Collection(v => v.Photos).LoadAsync(ct);
+
+            var uploadRoot = Path.Combine(
+                Directory.GetCurrentDirectory(), "wwwroot", "uploads", "vehicles", job.VehicleId.ToString());
+            Directory.CreateDirectory(uploadRoot);
+
+            // overflow sil (mevcut + job item)
+            var currentPhotos = vehicle.Photos.OrderBy(p => p.SortOrder).ToList();
+            var validItems = job.Items.Where(i => System.IO.File.Exists(i.TempPath)).ToList();
+
+            var totalAfter = currentPhotos.Count + validItems.Count;
+            var overflow = totalAfter - 10;
+
+            if (overflow > 0)
+            {
+                var toDelete = currentPhotos.Take(overflow).ToList();
+                foreach (var p in toDelete)
+                {
+                    DeleteImageVariantsFromDisk(p.Url);
+                    db.VehiclePhotos.Remove(p);
+                    vehicle.Photos.Remove(p);
+                }
+                await db.SaveChangesAsync(ct);
+            }
+
+            var nextSort = vehicle.Photos.Any()
+                ? vehicle.Photos.Max(p => p.SortOrder) + 1
+                : 0;
+
+            foreach (var item in validItems)
+            {
+                // ImageSharp işlemleri
+                var baseName = $"{Guid.NewGuid():N}";
+                var largeFileName = $"{baseName}_large.jpg";
+                var mediumFileName = $"{baseName}_medium.jpg";
+                var thumbFileName = $"{baseName}_thumb.jpg";
+
+                var largePath = Path.Combine(uploadRoot, largeFileName);
+                var mediumPath = Path.Combine(uploadRoot, mediumFileName);
+                var thumbPath = Path.Combine(uploadRoot, thumbFileName);
+
+                try
+                {
+                    await using var input = System.IO.File.OpenRead(item.TempPath);
+                    using var img = await Image.LoadAsync(input, ct);
+
+                    img.Mutate(x => x.AutoOrient());
+
+                    using (var large = img.Clone(x => x.Resize(new ResizeOptions
+                    {
+                        Mode = ResizeMode.Max,
+                        Size = new Size(1600, 1600)
+                    })))
+                    {
+                        await large.SaveAsJpegAsync(largePath, new JpegEncoder { Quality = 85 }, ct);
+                    }
+
+                    using (var medium = img.Clone(x => x.Resize(new ResizeOptions
+                    {
+                        Mode = ResizeMode.Max,
+                        Size = new Size(900, 900)
+                    })))
+                    {
+                        await medium.SaveAsJpegAsync(mediumPath, new JpegEncoder { Quality = 80 }, ct);
+                    }
+
+                    using (var thumb = img.Clone(x => x.Resize(new ResizeOptions
+                    {
+                        Mode = ResizeMode.Crop,
+                        Size = new Size(400, 300)
+                    })))
+                    {
+                        await thumb.SaveAsJpegAsync(thumbPath, new JpegEncoder { Quality = 75 }, ct);
+                    }
+                }
+                catch
+                {
+                    SafeDeleteFile(largePath);
+                    SafeDeleteFile(mediumPath);
+                    SafeDeleteFile(thumbPath);
+                    continue;
+                }
+                finally
+                {
+                    SafeDeleteFile(item.TempPath);
+                }
+
+                var urlLarge = $"/uploads/vehicles/{job.VehicleId}/{largeFileName}";
+
+                var photo = new VehiclePhoto
+                {
+                    VehicleId = job.VehicleId,
+                    Url = urlLarge,
+                    SortOrder = nextSort++,
+                    IsCover = false
+                };
+
+                db.VehiclePhotos.Add(photo);
+                vehicle.Photos.Add(photo);
+            }
+
+            // cover garanti
+            if (!vehicle.Photos.Any(p => p.IsCover) && vehicle.Photos.Any())
+            {
+                var first = vehicle.Photos.OrderBy(p => p.SortOrder).First();
+                first.IsCover = true;
+            }
+
+            await db.SaveChangesAsync(ct);
+
+            job.Status = UploadJobStatus.Completed;
+            job.CompletedUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+
+            // job temp klasörünü temizle (boş kaldıysa)
+            TryDeleteDirectory(Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "temp_uploads", job.Id.ToString("N")));
+        }
+        catch (Exception ex)
+        {
+            job.Status = UploadJobStatus.Failed;
+            job.Error = ex.Message;
+            await db.SaveChangesAsync(ct);
+            throw;
+        }
+
+        void DeleteImageVariantsFromDisk(string? urlLarge)
+        {
+            if (string.IsNullOrWhiteSpace(urlLarge)) return;
+
+            var relative = urlLarge.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
+            var wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var largePhysical = Path.Combine(wwwroot, relative);
+
+            SafeDeleteFile(largePhysical);
+            SafeDeleteFile(largePhysical.Replace("_large.jpg", "_medium.jpg"));
+            SafeDeleteFile(largePhysical.Replace("_large.jpg", "_thumb.jpg"));
+        }
+
+        void SafeDeleteFile(string path)
+        {
+            try { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); } catch { }
+        }
+
+        void TryDeleteDirectory(string path)
+        {
+            try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); } catch { }
+        }
+    }
+}
+```
+
+---
+
+## 5) Program.cs / DI kayıtları
+
+```csharp
+builder.Services.AddSingleton<IPhotoJobQueue, PhotoJobQueue>();
+builder.Services.AddHostedService<PhotoProcessingWorker>();
+
+// Request limitleri (Kestrel + FormOptions)
+builder.Services.Configure<FormOptions>(o =>
+{
+    o.MultipartBodyLengthLimit = 200_000_000; // 200MB örnek
+});
+
+builder.WebHost.ConfigureKestrel(k =>
+{
+    k.Limits.MaxRequestBodySize = 200_000_000;
+});
+```
+
+---
+
+## 6) “Size hatası” büyük ihtimalle limit: bunu da düzeltmen gerekiyor
+
+Queue yapmak **timeout** problemini çözer ama **413 / body too large** varsa queue’ya bile giremez.
+
+Bu yüzden yukarıdaki:
+
+* `[RequestSizeLimit]` + `[RequestFormLimits]`
+* `FormOptions.MultipartBodyLengthLimit`
+* `Kestrel MaxRequestBodySize`
+
+üçlüsü kritik.
+
+> Eğer reverse proxy (Nginx/IIS) arkasındaysan, orada da limit vardır:
+
+* IIS: `maxAllowedContentLength`
+* Nginx: `client_max_body_size`
+
+---
+
+## İstersen “progress” de ekleyelim (çok kolay)
+
+Edit sayfası jobId’yi biliyorsa, bir endpoint:
+
+* `GET /Vehicles/PhotoJobStatus?jobId=...`
+  job status döner, UI her 2 sn poll eder “Processing/Completed”.
+
+---
+
+### Bunu direkt senin projene uyarlamak için 2 kritik bilgi
+
+* Sunucu hosting’in ne? **IIS mi, Nginx mi, direkt Kestrel mi?** (limit ayarı ona göre tamamlanır)
+* “Size hatası” tam olarak hangi hata? (413 mü, yoksa uygulama exception mı?)
+
+Ama sorunsuz ilerlemek için: **Queue + limit artırma** ikisini birlikte uygula; mobilde çoklu yüklemede en sağlam çözüm bu.
+
+
+
+
+
+
+
+
+
+====== environment sec ======
+
+1) En kolay: .csproj olan klasöre geç
+
+Önce bulunduğun yerde proje var mı kontrol et:
+
+# dir *.csproj
+
+
+Kontrol:
+
+Localde komut çalıştırırken environment “Development” mı?
+
+echo %ASPNETCORE_ENVIRONMENT%
+yada
+Write-Host $env:ASPNETCORE_ENVIRONMENT
+
+
+
+Yoksa Powershell:
+
+$env:ASPNETCORE_ENVIRONMENT
+
+
+Boşsa bile genelde dev config’le gider ama emin olmak istersen:
+
+Windows PowerShell
+
+# test ortami 
+$env:ASPNETCORE_ENVIRONMENT="Development"
+dotnet ef database update
+
+
+## preprod ortami 
+$env:ASPNETCORE_ENVIRONMENT="Production"
+dotnet ef migrations add AddPhotoUploadQueue
+dotnet ef database update
+
+====== environment sec ======
+
+
+======= db   =======
+
+dotnet ef migrations add AddPhotoUploadQueue
+dotnet ef database update
+
+olmazsa 
+
+###################################
+1) En kolay: .csproj olan klasöre geç
+
+Önce bulunduğun yerde proje var mı kontrol et:
+
+# dir *.csproj
+
+
+Eğer boşsa, bir üst/alt klasörlerde ara:
+
+# dir -Recurse *.csproj
+
+
+Çıktıda mesela şuna benzer bir şey göreceksin:
+
+.\Presentation\Presentation.csproj
+veya
+
+.\CarSalesPlatform\CarSalesPlatform.csproj
+
+Sonra o klasöre cd ile git:
+
+cd .\Presentation
+dotnet ef database update
+
+
+======= db   ======= 

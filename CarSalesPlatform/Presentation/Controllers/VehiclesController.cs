@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Presentation.BackgroundJobs.Interfaces;
+using Presentation.BackgroundJobs.PhotoUploads;
 using Presentation.Data;
 using Presentation.Models;
 using Presentation.Models.Enums;
@@ -514,7 +516,10 @@ public class VehiclesController : Controller
     // =========================
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UploadPhotos(int vehicleId, List<IFormFile> files)
+    [RequestSizeLimit(200_000_000)] // örnek: 200MB
+    [RequestFormLimits(MultipartBodyLengthLimit = 200_000_000)]
+    public async Task<IActionResult> UploadPhotos(int vehicleId, List<IFormFile> files,
+    [FromServices] IPhotoJobQueue queue)
     {
         var userId = CurrentUserId;
 
@@ -528,143 +533,63 @@ public class VehiclesController : Controller
         }
 
         var vehicle = await _db.Vehicles
+            .AsNoTracking()
             .FirstOrDefaultAsync(v => v.Id == vehicleId && v.OwnerId == userId);
 
         if (vehicle == null) return NotFound();
 
-        // ✅ Photos koleksiyonunu yöneteceğiz => explicit load
-        await _db.Entry(vehicle).Collection(v => v.Photos).LoadAsync();
-
-        var uploadRoot = Path.Combine(
-            Directory.GetCurrentDirectory(), "wwwroot", "uploads", "vehicles", vehicleId.ToString());
-        Directory.CreateDirectory(uploadRoot);
-
-        // 1) overflow varsa en eski kadar sil (large + medium + thumb)
-        var currentPhotos = vehicle.Photos.OrderBy(p => p.SortOrder).ToList();
-        var totalAfter = currentPhotos.Count + files.Count;
-        var overflow = totalAfter - 10;
-
-        if (overflow > 0)
+        // 1) Job oluştur
+        var job = new PhotoUploadJob
         {
-            var toDelete = currentPhotos.Take(overflow).ToList();
-            foreach (var p in toDelete)
-            {
-                DeleteImageVariantsFromDisk(p.Url);
-                _db.VehiclePhotos.Remove(p);
-                vehicle.Photos.Remove(p);
-            }
-            await _db.SaveChangesAsync();
-        }
+            Id = Guid.NewGuid(),
+            VehicleId = vehicleId,
+            OwnerId = userId,
+            Status = UploadJobStatus.Queued
+        };
+        _db.Add(job);
 
-        // 2) ekle
-        var nextSort = vehicle.Photos.Any()
-            ? vehicle.Photos.Max(p => p.SortOrder) + 1
-            : 0;
+        // 2) Temp klasör
+        var tempRoot = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "temp_uploads", job.Id.ToString("N"));
+        Directory.CreateDirectory(tempRoot);
 
+        // 3) Dosyaları temp’e yaz (stream)
         foreach (var file in files)
         {
-            if (file.Length <= 0) continue;
-            if (!string.IsNullOrWhiteSpace(file.ContentType) && !file.ContentType.StartsWith("image/"))
-                continue;
+            if (file == null || file.Length <= 0) continue;
+            if (!string.IsNullOrWhiteSpace(file.ContentType) && !file.ContentType.StartsWith("image/")) continue;
 
-            var baseName = $"{Guid.NewGuid():N}";
-            var largeFileName = $"{baseName}_large.jpg";
-            var mediumFileName = $"{baseName}_medium.jpg";
-            var thumbFileName = $"{baseName}_thumb.jpg";
+            var ext = Path.GetExtension(file.FileName);
+            if (string.IsNullOrWhiteSpace(ext)) ext = ".bin";
 
-            var largePath = Path.Combine(uploadRoot, largeFileName);
-            var mediumPath = Path.Combine(uploadRoot, mediumFileName);
-            var thumbPath = Path.Combine(uploadRoot, thumbFileName);
+            var tempName = $"{Guid.NewGuid():N}{ext}";
+            var tempPath = Path.Combine(tempRoot, tempName);
 
-            try
+            await using (var fs = System.IO.File.Create(tempPath))
+            await using (var input = file.OpenReadStream())
             {
-                await using var input = file.OpenReadStream();
-                using var img = await ImageSharpImage.LoadAsync(input);
-
-                img.Mutate(x => x.AutoOrient());
-
-                using (var large = img.Clone(x => x.Resize(new ResizeOptions
-                {
-                    Mode = ResizeMode.Max,
-                    Size = new Size(1600, 1600)
-                })))
-                {
-                    await large.SaveAsJpegAsync(largePath, new JpegEncoder { Quality = 85 });
-                }
-
-                using (var medium = img.Clone(x => x.Resize(new ResizeOptions
-                {
-                    Mode = ResizeMode.Max,
-                    Size = new Size(900, 900)
-                })))
-                {
-                    await medium.SaveAsJpegAsync(mediumPath, new JpegEncoder { Quality = 80 });
-                }
-
-                using (var thumb = img.Clone(x => x.Resize(new ResizeOptions
-                {
-                    Mode = ResizeMode.Crop,
-                    Size = new Size(400, 300)
-                })))
-                {
-                    await thumb.SaveAsJpegAsync(thumbPath, new JpegEncoder { Quality = 75 });
-                }
-            }
-            catch
-            {
-                SafeDeleteFile(largePath);
-                SafeDeleteFile(mediumPath);
-                SafeDeleteFile(thumbPath);
-                continue;
+                await input.CopyToAsync(fs);
             }
 
-            var urlLarge = $"/uploads/vehicles/{vehicleId}/{largeFileName}";
-
-            var photo = new VehiclePhoto
+            job.Items.Add(new PhotoUploadItem
             {
-                VehicleId = vehicleId,
-                Url = urlLarge,
-                SortOrder = nextSort++,
-                IsCover = false
-            };
-
-            _db.VehiclePhotos.Add(photo);
-            vehicle.Photos.Add(photo);
-        }
-
-        // 3) cover garanti
-        if (!vehicle.Photos.Any(p => p.IsCover) && vehicle.Photos.Any())
-        {
-            var first = vehicle.Photos.OrderBy(p => p.SortOrder).First();
-            first.IsCover = true;
+                JobId = job.Id,
+                TempPath = tempPath,
+                ContentType = file.ContentType,
+                Length = file.Length,
+                OriginalFileName = file.FileName
+            });
         }
 
         await _db.SaveChangesAsync();
+
+        // 4) Kuyruğa at
+        await queue.EnqueueAsync(job.Id);
+
+        TempData["PhotoInfo"] = "Photos are being processed in the background.";
+        // İstersen job id’yi UI’da progress için taşı
+        TempData["PhotoJobId"] = job.Id.ToString("N");
+
         return RedirectToAction(nameof(Edit), new { id = vehicleId });
-
-        // ---- local helpers ----
-        void DeleteImageVariantsFromDisk(string? urlLarge)
-        {
-            if (string.IsNullOrWhiteSpace(urlLarge)) return;
-
-            var relative = urlLarge.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
-            var wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-            var largePhysical = Path.Combine(wwwroot, relative);
-
-            SafeDeleteFile(largePhysical);
-            SafeDeleteFile(largePhysical.Replace("_large.jpg", "_medium.jpg"));
-            SafeDeleteFile(largePhysical.Replace("_large.jpg", "_thumb.jpg"));
-        }
-
-        void SafeDeleteFile(string path)
-        {
-            try
-            {
-                if (System.IO.File.Exists(path))
-                    System.IO.File.Delete(path);
-            }
-            catch { }
-        }
     }
 
     [HttpPost]
